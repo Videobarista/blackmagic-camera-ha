@@ -7,7 +7,10 @@ from typing import Any
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
-from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
+from pytest_homeassistant_custom_component.test_util.aiohttp import (
+    AiohttpClientMocker,
+    AiohttpClientMockResponse,
+)
 
 from homeassistant.components.button import DOMAIN as BUTTON_DOMAIN, SERVICE_PRESS
 from homeassistant.components.number import ATTR_VALUE, DOMAIN as NUMBER_DOMAIN, SERVICE_SET_VALUE
@@ -130,12 +133,6 @@ async def test_stream_switch(
             {"mode": "TrackFace"},
         ),
         (
-            "select.pyxis_6k_focus_assist_color",
-            "green",
-            "/monitoring/focusAssist",
-            {"color": "Green", "intensity": 0, "mode": "Peak"},
-        ),
-        (
             "select.pyxis_6k_audio_1_input",
             "XLR1 - Line",
             "/audio/channel/0/input",
@@ -205,12 +202,6 @@ async def test_select_invalid_option(hass: HomeAssistant) -> None:
         ("number.pyxis_6k_lens_iris", 4.0, "/lens/iris", {"apertureStop": 4.0}),
         ("number.pyxis_6k_lens_focus", 50, "/lens/focus", {"normalised": 0.5}),
         ("number.pyxis_6k_audio_1_gain", 20, "/audio/channel/0/level", {"gain": 20.0}),
-        (
-            "number.pyxis_6k_focus_assist_intensity",
-            75,
-            "/monitoring/focusAssist",
-            {"color": "Red", "intensity": 75, "mode": "Peak"},
-        ),
     ],
 )
 async def test_numbers(
@@ -228,8 +219,10 @@ async def test_numbers(
 
 async def test_number_ranges(hass: HomeAssistant, setup_camera: MockConfigEntry) -> None:
     """Ranges reported by the camera are used."""
+    # 2.799999952316284 from the camera is snapped to the 0.1 step, so the
+    # 2.8 the frontend sends is accepted.
     iris = hass.states.get("number.pyxis_6k_lens_iris")
-    assert iris.attributes["min"] == pytest.approx(2.8, abs=0.01)
+    assert iris.attributes["min"] == 2.8
     assert iris.attributes["max"] == 22.0
     gain = hass.states.get("number.pyxis_6k_audio_1_gain")
     assert (gain.attributes["min"], gain.attributes["max"]) == (0.0, 60.0)
@@ -318,3 +311,62 @@ async def test_sensor_attributes(hass: HomeAssistant, setup_camera: MockConfigEn
     remaining = hass.states.get("sensor.pyxis_6k_remaining_record_time")
     assert remaining.attributes["volume"] == "A006"
     assert float(remaining.state) == pytest.approx(2579 / 60, abs=0.01)
+
+
+async def test_iris_at_minimum(
+    hass: HomeAssistant, setup_camera: MockConfigEntry, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """The widest aperture can be set (regression: range rounding)."""
+    await _call(hass, NUMBER_DOMAIN, SERVICE_SET_VALUE, "number.pyxis_6k_lens_iris", value=2.8)
+    assert calls(aioclient_mock, "put", "/lens/iris") == [{"apertureStop": 2.8}]
+
+
+async def test_focus_assist_partial_then_full(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    mock_camera: Callable[..., None],
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """Focus assist sends only the changed field, the full object if refused."""
+    answers = [
+        AiohttpClientMockResponse("put", f"{BASE}/monitoring/focusAssist", status=422),
+        AiohttpClientMockResponse("put", f"{BASE}/monitoring/focusAssist", status=204),
+        AiohttpClientMockResponse("put", f"{BASE}/monitoring/focusAssist", status=204),
+    ]
+
+    async def _answer(method: str, url: Any, data: Any) -> AiohttpClientMockResponse:
+        return answers.pop(0)
+
+    aioclient_mock.put(f"{BASE}/monitoring/focusAssist", side_effect=_answer)
+    mock_camera()
+    config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+    for entity_id in (
+        "select.pyxis_6k_focus_assist_color",
+        "number.pyxis_6k_focus_assist_intensity",
+    ):
+        er.async_get(hass).async_update_entity(entity_id, disabled_by=None)
+    await hass.config_entries.async_reload(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    await _call(
+        hass,
+        SELECT_DOMAIN,
+        SERVICE_SELECT_OPTION,
+        "select.pyxis_6k_focus_assist_color",
+        option="green",
+    )
+    assert calls(aioclient_mock, "put", "/monitoring/focusAssist") == [
+        {"color": "Green"},
+        {"color": "Green", "intensity": 0, "mode": "Peak"},
+    ]
+    aioclient_mock.mock_calls.clear()
+    await _call(
+        hass,
+        NUMBER_DOMAIN,
+        SERVICE_SET_VALUE,
+        "number.pyxis_6k_focus_assist_intensity",
+        value=75,
+    )
+    assert calls(aioclient_mock, "put", "/monitoring/focusAssist") == [{"intensity": 75}]

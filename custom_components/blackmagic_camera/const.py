@@ -16,12 +16,16 @@ MIN_SCAN_INTERVAL: Final = 5
 MAX_SCAN_INTERVAL: Final = 300
 DEFAULT_USE_WEBSOCKET: Final = True
 
+# An offline camera is checked every scan interval, doubling up to this (s).
+OFFLINE_RETRY_MAX: Final = 30
 # "Slow" properties are refreshed every N polls.
 SLOW_POLL_EVERY: Final = 6
 # Properties covered by the websocket are re-read every N polls as a safety net.
 SAFETY_POLL_EVERY: Final = 30
 
 REQUEST_TIMEOUT: Final = 10
+# Answers to a partial update that are retried with the full object merged in.
+REJECTED_STATUS: Final = frozenset({400, 422})
 MAX_PARALLEL_REQUESTS: Final = 4
 
 STORAGE_VERSION: Final = 1

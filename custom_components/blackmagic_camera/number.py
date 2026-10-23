@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import math
 from typing import Any
 
 from homeassistant.components.number import NumberEntity, NumberEntityDescription, NumberMode
@@ -32,6 +33,7 @@ from .const import (
     P_WHITE_BALANCE_DESC,
     P_ZOOM,
     P_ZOOM_DESC,
+    REJECTED_STATUS,
     audio_path,
     monitor_path,
 )
@@ -59,6 +61,9 @@ class CameraNumberDescription(NumberEntityDescription):
     range_fn: Callable[[BlackmagicCameraEntity], tuple[float | None, float | None]] | None = None
     available_fn: Callable[[BlackmagicCameraEntity], bool] | None = None
     refresh: tuple[str, ...] = ()
+    # Retry with the full current object merged in when the camera refuses a
+    # partial update (documentation and firmware disagree on this).
+    merge_on_reject: bool = False
 
 
 def _field_value(key: str) -> Callable[[BlackmagicCameraEntity], float | None]:
@@ -84,13 +89,6 @@ def _controllable(path: str) -> Callable[[BlackmagicCameraEntity], bool]:
 
 def _lens_normalized_write(entity: BlackmagicCameraEntity, value: float) -> dict[str, float]:
     return {normalized_key(entity.prop()): round(value / 100, 4)}
-
-
-def _focus_assist_intensity(entity: BlackmagicCameraEntity, value: float) -> dict[str, Any]:
-    current = entity.prop()
-    payload = dict(current) if isinstance(current, dict) else {}
-    payload["intensity"] = int(value)
-    return payload
 
 
 GLOBAL_NUMBERS: tuple[CameraNumberDescription, ...] = (
@@ -165,13 +163,15 @@ GLOBAL_NUMBERS: tuple[CameraNumberDescription, ...] = (
         translation_key="focus_assist_intensity",
         path=P_FOCUS_ASSIST,
         entity_category=EntityCategory.CONFIG,
+        entity_registry_enabled_default=False,
         native_unit_of_measurement=PERCENTAGE,
         native_min_value=0,
         native_max_value=100,
         native_step=1,
         mode=NumberMode.SLIDER,
         value_fn=_field_value("intensity"),
-        write_fn=_focus_assist_intensity,
+        write_fn=lambda _e, v: {"intensity": int(v)},
+        merge_on_reject=True,
     ),
     CameraNumberDescription(
         key="safe_area_percent",
@@ -327,9 +327,20 @@ class CameraNumber(BlackmagicCameraEntity, NumberEntity):
         return check is None or check(self)
 
     def _limits(self) -> tuple[float | None, float | None]:
+        """Range reported by the camera, snapped inwards to the step.
+
+        Cameras report values like 2.799999952316284; snapping keeps values
+        the frontend sends (2.8) inside the range.
+        """
         if self.entity_description.range_fn is None:
             return None, None
         low, high = self.entity_description.range_fn(self)
+        step = self.entity_description.native_step or 1
+        decimals = len(f"{step:g}".partition(".")[2])
+        if low is not None:
+            low = round(math.ceil(low / step - 1e-6) * step, decimals)
+        if high is not None:
+            high = round(math.floor(high / step + 1e-6) * step, decimals)
         if low is not None and high is not None and low >= high:
             return None, None
         return low, high
@@ -358,9 +369,15 @@ class CameraNumber(BlackmagicCameraEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         """Write a new value to the camera."""
         description = self.entity_description
+        payload = description.write_fn(self, value)
+        fallback = None
+        if description.merge_on_reject and isinstance(current := self.prop(), dict):
+            fallback = ("put", description.path, {**current, **payload})
         await self.coordinator.async_command(
             "put",
             description.path,
-            description.write_fn(self, value),
+            payload,
             refresh=description.refresh or (description.path,),
+            fallback=fallback,
+            fallback_status=REJECTED_STATUS,
         )

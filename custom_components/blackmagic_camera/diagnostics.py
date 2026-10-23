@@ -23,6 +23,7 @@ async def async_get_config_entry_diagnostics(
             "options": dict(entry.options),
         },
         "capabilities": coordinator.capabilities.as_dict(),
+        "online": coordinator.online,
         "websocket_connected": coordinator.websocket_connected,
         "last_update_success": coordinator.last_update_success,
         "data": async_redact_data(coordinator.data or {}, REDACT_KEYS),

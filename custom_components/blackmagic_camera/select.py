@@ -39,6 +39,7 @@ from .const import (
     P_SUPPORTED_SHUTTERS,
     P_TALLY,
     P_WORKINGSET,
+    REJECTED_STATUS,
     audio_path,
 )
 from .coordinator import BlackmagicCameraConfigEntry
@@ -76,6 +77,9 @@ class CameraSelectDescription(SelectEntityDescription):
     current_fn: Callable[[BlackmagicCameraEntity], str | None]
     write_fn: Callable[[BlackmagicCameraEntity, Any], tuple[str, Any, tuple[str, ...]]]
     available_fn: Callable[[BlackmagicCameraEntity], bool] | None = None
+    # Retry with the full current object merged in when the camera refuses a
+    # partial update (documentation and firmware disagree on this).
+    merge_on_reject: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -136,15 +140,8 @@ def _auto_exposure_write(
 
 
 def _focus_assist_write(key: str) -> Callable[..., tuple[str, Any, tuple[str, ...]]]:
-    """The global focus assist PUT needs all fields."""
-
-    def _write(entity: BlackmagicCameraEntity, value: Any) -> tuple[str, Any, tuple[str, ...]]:
-        current = entity.prop(P_FOCUS_ASSIST)
-        payload = dict(current) if isinstance(current, dict) else {}
-        payload[key] = value
-        return P_FOCUS_ASSIST, payload, (P_FOCUS_ASSIST,)
-
-    return _write
+    """Write one global focus assist field (the full object is the fallback)."""
+    return lambda _e, value: (P_FOCUS_ASSIST, {key: value}, (P_FOCUS_ASSIST,))
 
 
 # ---------------------------------------------------------------------------
@@ -421,18 +418,22 @@ GLOBAL_SELECTS: tuple[CameraSelectDescription, ...] = (
         translation_key="focus_assist_mode",
         path=P_FOCUS_ASSIST,
         entity_category=EntityCategory.CONFIG,
+        entity_registry_enabled_default=False,
         options_fn=_enum_options(FOCUS_ASSIST_MODE),
         current_fn=_enum_current("mode"),
         write_fn=_focus_assist_write("mode"),
+        merge_on_reject=True,
     ),
     CameraSelectDescription(
         key="focus_assist_color",
         translation_key="focus_assist_color",
         path=P_FOCUS_ASSIST,
         entity_category=EntityCategory.CONFIG,
+        entity_registry_enabled_default=False,
         options_fn=_enum_options(FOCUS_ASSIST_COLOR),
         current_fn=_enum_current("color"),
         write_fn=_focus_assist_write("color"),
+        merge_on_reject=True,
     ),
     CameraSelectDescription(
         key="frame_guide_ratio",
@@ -555,4 +556,16 @@ class CameraSelect(BlackmagicCameraEntity, SelectEntity):
                 translation_placeholders={"option": option},
             )
         path, payload, refresh = self.entity_description.write_fn(self, value)
-        await self.coordinator.async_command("put", path, payload, refresh=refresh)
+        fallback = None
+        if self.entity_description.merge_on_reject:
+            current = self.prop(path)
+            if isinstance(current, dict):
+                fallback = ("put", path, {**current, **payload})
+        await self.coordinator.async_command(
+            "put",
+            path,
+            payload,
+            refresh=refresh,
+            fallback=fallback,
+            fallback_status=REJECTED_STATUS,
+        )

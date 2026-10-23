@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import timedelta
+import logging
 from typing import Any
 
 import aiohttp
 from freezegun.api import FrozenDateTimeFactory
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
@@ -106,11 +108,17 @@ async def test_states(
 
 
 async def test_setup_while_camera_offline(
-    hass: HomeAssistant, config_entry: MockConfigEntry, aioclient_mock: AiohttpClientMocker
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A camera that is switched off does not make the setup fail."""
     aioclient_mock.get(f"{BASE}/system/product", exc=aiohttp.ClientConnectionError())
     await _setup(hass, config_entry)
+    assert not [
+        r for r in caplog.records if r.levelno >= logging.WARNING and "blackmagic_camera" in r.name
+    ]
 
     assert config_entry.state is ConfigEntryState.LOADED
     assert hass.states.get("binary_sensor.pyxis_6k_connection").state == STATE_OFF
@@ -152,26 +160,55 @@ async def test_camera_goes_offline(
     mock_camera: Callable[..., None],
     aioclient_mock: AiohttpClientMocker,
     freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Entities become unavailable when the camera stops answering."""
+    """An unreachable camera is offline (not an error) and checked with back-off."""
     mock_camera()
     await _setup(hass, config_entry)
+    coordinator = config_entry.runtime_data
     assert hass.states.get("select.pyxis_6k_iso").state == "400"
 
     aioclient_mock.clear_requests()
+    offline = {"status": 0, "exc": aiohttp.ClientConnectionError()}
     mock_camera(
-        {
-            path: {"status": 0, "exc": aiohttp.ClientConnectionError()}
-            for path in hass.config_entries.async_get_entry(
-                config_entry.entry_id
-            ).runtime_data.capabilities.supported
-        }
+        {path: offline for path in [*coordinator.capabilities.supported, "/system/product"]}
     )
-    freezer.tick(timedelta(seconds=11))
-    async_fire_time_changed(hass)
-    await hass.async_block_till_done(wait_background_tasks=True)
+
+    async def _tick(seconds: float) -> None:
+        freezer.tick(timedelta(seconds=seconds))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done(wait_background_tasks=True)
+
+    await _tick(11)
     assert hass.states.get("select.pyxis_6k_iso").state == STATE_UNAVAILABLE
     assert hass.states.get("binary_sensor.pyxis_6k_connection").state == STATE_OFF
+    assert coordinator.update_interval == timedelta(seconds=10)
+
+    # While offline only /system/product is asked, with a growing interval.
+    aioclient_mock.mock_calls.clear()
+    await _tick(11)
+    assert coordinator.update_interval == timedelta(seconds=20)
+    await _tick(21)
+    assert coordinator.update_interval == timedelta(seconds=30)
+    await _tick(31)
+    assert coordinator.update_interval == timedelta(seconds=30)
+    assert {str(url) for _m, url, _d, _h in aioclient_mock.mock_calls} == {f"{BASE}/system/product"}
+
+    # Being offline is logged as information, never as an error.
+    assert not [
+        record
+        for record in caplog.records
+        if record.levelno >= logging.WARNING and "blackmagic_camera" in record.name
+    ]
+
+    # The camera is back: full poll, normal interval.
+    aioclient_mock.clear_requests()
+    mock_camera()
+    await _tick(31)
+    assert hass.states.get("select.pyxis_6k_iso").state == "400"
+    assert hass.states.get("binary_sensor.pyxis_6k_connection").state == STATE_ON
+    assert coordinator.update_interval == timedelta(seconds=10)
+    assert "is back online" in caplog.text
 
 
 async def test_invalid_auth_fails_setup(

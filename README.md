@@ -27,9 +27,14 @@ media status, switch monitoring overlays, audio inputs, tally and more.
 - **Auto detection**: every camera model supports a different part of the
   API. Each property is probed once and only gets an entity when the camera
   supports it, so a PYXIS gets no ND filter and a URSA Broadcast G2 does.
-- **Works with a camera that is switched off**: Home Assistant starts
-  normally, the entities are unavailable and the *Connection* sensor shows
-  the camera as disconnected until it is back.
+- **Works with a camera that is switched off**: offline is treated as a
+  state, not an error. Home Assistant starts normally, the entities are
+  unavailable and the *Connection* sensor shows the camera as disconnected.
+  A single small request checks for its return every 10 s, backing off to
+  every 30 s; when it answers again everything is refreshed and push updates
+  resume. Going offline and coming back are logged as information only.
+- **Light on Home Assistant**: pushed changes only update the entities that
+  read the changed value, so several cameras can run side by side.
 - **Sorted entities**: main controls, sensors, configuration and diagnostics
   are separated by entity category, grouped by name prefix (*Lens …*,
   *Audio 1 …*, *Monitor LCD …*, *Color …*, *Stream …*) and niche entities are
@@ -129,11 +134,12 @@ Entities are only created for features your camera reports. Names with
 
 Shutter measurement, Dynamic range, Active media, Proxy recording, Auto
 prerecord, Prerecord duration, Detail sharpening (+ level), Lens image
-stabilization, Lens autofocus enabled / mode, Focus assist mode / color /
-intensity, Monitor {display} display LUT / zebra / focus assist / false
-color, Audio {n} input / gain / phantom power / pad / low cut filter.
+stabilization, Lens autofocus enabled / mode, Monitor {display} display LUT /
+zebra / focus assist / false color, Audio {n} input / gain / phantom power /
+pad / low cut filter.
 
-Disabled by default: Program feed display, Frame guide ratio, Safe area size,
+Disabled by default: Focus assist mode / color / intensity, Program feed
+display, Frame guide ratio, Safe area size,
 Monitor {display} clean feed / frame guide / frame grids / safe area /
 brightness, all **Color …** correction values and **Color correction reset**.
 

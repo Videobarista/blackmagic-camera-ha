@@ -129,6 +129,27 @@ async def test_websocket_push(
         coordinator._poll_count = 1
         assert "/video/iso" not in coordinator._paths_to_poll()
 
+        # Only entities that read a changed property write a new state.
+        battery_before = hass.states.get("sensor.pyxis_6k_battery").last_reported
+        iso_before = hass.states.get("select.pyxis_6k_iso").last_reported
+        coordinator._handle_ws_text(
+            json.dumps(
+                {
+                    "type": "event",
+                    "data": {
+                        "action": "propertyValueChanged",
+                        "property": "/video/iso",
+                        "value": {"iso": 800},
+                    },
+                }
+            )
+        )
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=2))
+        await hass.async_block_till_done()
+        assert hass.states.get("select.pyxis_6k_iso").state == "800"
+        assert hass.states.get("select.pyxis_6k_iso").last_reported != iso_before
+        assert hass.states.get("sensor.pyxis_6k_battery").last_reported == battery_before
+
         # Closing the socket falls back to polling.
         fake.release.set()
         await hass.async_block_till_done(wait_background_tasks=True)

@@ -112,7 +112,7 @@ class ConnectionBinarySensor(BlackmagicCameraEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         """Return True while the camera is reachable."""
-        return self.coordinator.last_update_success
+        return self.coordinator.online
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

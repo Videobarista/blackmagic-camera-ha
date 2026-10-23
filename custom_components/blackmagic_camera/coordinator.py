@@ -35,6 +35,8 @@ from .const import (
     DOMAIN,
     FAST_PATHS,
     MAX_PARALLEL_REQUESTS,
+    OFFLINE_RETRY_MAX,
+    P_PRODUCT,
     SAFETY_POLL_EVERY,
     SLOW_POLL_EVERY,
     STORAGE_VERSION,
@@ -60,6 +62,11 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     State arrives in two ways: properties pushed over the notification
     websocket, and polling for everything the websocket does not cover (or
     for everything when the websocket is unavailable).
+
+    A camera that does not answer is treated as switched off, not as an
+    error: entities become unavailable, the Connection sensor turns off and
+    a single cheap request checks for its return with an exponential back-off
+    (scan interval doubling up to OFFLINE_RETRY_MAX seconds).
     """
 
     config_entry: BlackmagicCameraConfigEntry
@@ -71,19 +78,23 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         api: BlackmagicCameraApi,
     ) -> None:
         """Initialize the coordinator."""
+        self.scan_interval = timedelta(
+            seconds=entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        )
         super().__init__(
             hass,
             _LOGGER,
             config_entry=entry,
             name=f"{DOMAIN} {entry.title}",
-            update_interval=timedelta(
-                seconds=entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
-            ),
+            update_interval=self.scan_interval,
             always_update=False,
         )
         self.api = api
         self.capabilities = CameraCapabilities.minimal()
+        self.online = False
         self.websocket_connected = False
+        # Properties changed by the current update; None means "everything".
+        self.changed_paths: frozenset[str] | None = None
         self._use_websocket: bool = entry.options.get(CONF_USE_WEBSOCKET, DEFAULT_USE_WEBSOCKET)
         self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}"
@@ -91,6 +102,8 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._capabilities_verified = False
         self._poll_count = 0
         self._stopping = False
+        self._backoff: float | None = None
+        self._online_event = asyncio.Event()
         self._pending_push: dict[str, Any] = {}
         self._push_unsub: CALLBACK_TYPE | None = None
         self._ws: aiohttp.ClientWebSocketResponse | None = None
@@ -115,19 +128,75 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ) from err
         except BlackmagicCameraError as err:
             _LOGGER.info(
-                "Camera %s is not reachable (%s); setting up with cached features",
+                "Camera %s is offline (%s); setting up with cached features",
                 self.api.host,
                 err,
             )
             stored = await self._store.async_load()
             if stored:
                 self.capabilities = CameraCapabilities.from_dict(stored)
+            self._set_offline()
+            self.async_set_updated_data({})
             return
 
         self.capabilities = caps
         self._capabilities_verified = True
+        self._set_online()
         self.async_set_updated_data(data)
         await self._store.async_save(caps.as_dict())
+
+    # ------------------------------------------------------------------
+    # Online / offline
+    # ------------------------------------------------------------------
+    @callback
+    def _set_online(self) -> None:
+        if not self.online:
+            if self._capabilities_verified and self.data:
+                _LOGGER.info("Camera %s is back online", self.api.host)
+            self.online = True
+            self._poll_count = 0  # start with a full poll
+        self._backoff = None
+        self.update_interval = self.scan_interval
+        self._online_event.set()
+
+    @callback
+    def _set_offline(self) -> None:
+        """Mark the camera offline and back off the next check."""
+        if self.online:
+            _LOGGER.info(
+                "Camera %s is offline; checking every %s s with back-off up to %s s",
+                self.api.host,
+                int(self.scan_interval.total_seconds()),
+                OFFLINE_RETRY_MAX,
+            )
+        self.online = False
+        if self._backoff is None:
+            self._backoff = self.scan_interval.total_seconds()
+        else:
+            self._backoff = max(
+                min(self._backoff * 2, OFFLINE_RETRY_MAX), self.scan_interval.total_seconds()
+            )
+        self.update_interval = timedelta(seconds=self._backoff)
+        self._online_event.clear()
+
+    @callback
+    def async_update_listeners(self) -> None:
+        """Update listeners, then forget which properties changed."""
+        super().async_update_listeners()
+        self.changed_paths = None
+
+    @callback
+    def _set_data(self, data: dict[str, Any]) -> None:
+        """Store new data and only notify entities whose properties changed."""
+        old = self.data or {}
+        changed = {key for key, value in data.items() if old.get(key, ...) != value}
+        if not changed:
+            return
+        # Not async_set_updated_data: that would postpone the next poll on
+        # every push and starve polling while the camera pushes a lot.
+        self.data = data
+        self.changed_paths = frozenset(changed)
+        self.async_update_listeners()
 
     # ------------------------------------------------------------------
     # Polling
@@ -146,14 +215,28 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch the current state from the camera."""
+        self.changed_paths = None
         if not self._capabilities_verified:
             return await self._async_verify_capabilities()
+        if not self.online:
+            # One cheap request to see whether the camera is back.
+            try:
+                await self.api.get(P_PRODUCT)
+            except InvalidAuth as err:
+                raise UpdateFailed(
+                    translation_domain=DOMAIN, translation_key="invalid_auth"
+                ) from err
+            except BlackmagicCameraError:
+                return self._still_offline()
+            self._set_online()
+            self.async_update_listeners()
 
         paths = self._paths_to_poll()
         if not paths:
             return dict(self.data or {})
         results = await gather_limited(MAX_PARALLEL_REQUESTS, *(self.api.get(p) for p in paths))
-        data = dict(self.data or {})
+        old = self.data or {}
+        data = dict(old)
         connection_errors = 0
         for path, result in zip(paths, results, strict=True):
             if isinstance(result, CannotConnect):
@@ -173,16 +256,22 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 data[path] = result
 
         if connection_errors * 2 > len(paths):
-            raise UpdateFailed(
-                translation_domain=DOMAIN,
-                translation_key="cannot_connect",
-                translation_placeholders={"host": self.api.host},
-            )
+            return self._still_offline()
         if connection_errors:
             _LOGGER.debug(
                 "%d of %d reads failed, keeping previous values", connection_errors, len(paths)
             )
+        if changed := {k for k in paths if old.get(k, ...) != data.get(k)}:
+            self.changed_paths = frozenset(changed)
         return data
+
+    def _still_offline(self) -> dict[str, Any]:
+        """Handle an unanswered check: offline is a state, not an error."""
+        was_online = self.online
+        self._set_offline()
+        if was_online:
+            self.async_update_listeners()
+        return dict(self.data or {})
 
     async def _async_verify_capabilities(self) -> dict[str, Any]:
         """Probe a camera that was offline when Home Assistant started."""
@@ -190,20 +279,20 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             caps, data = await async_probe_capabilities(self.api)
         except InvalidAuth as err:
             raise UpdateFailed(translation_domain=DOMAIN, translation_key="invalid_auth") from err
-        except BlackmagicCameraError as err:
-            raise UpdateFailed(
-                translation_domain=DOMAIN,
-                translation_key="cannot_connect",
-                translation_placeholders={"host": self.api.host},
-            ) from err
+        except BlackmagicCameraError:
+            return self._still_offline()
 
         self._capabilities_verified = True
         changed = not caps.same_features(self.capabilities)
         self.capabilities = caps
         await self._store.async_save(caps.as_dict())
+        self._set_online()
         if changed:
             _LOGGER.info("Camera %s features changed, reloading entities", self.api.host)
             self.hass.config_entries.async_schedule_reload(self.config_entry.entry_id)
+        else:
+            _LOGGER.info("Camera %s is online", self.api.host)
+        self.async_update_listeners()
         return data
 
     # ------------------------------------------------------------------
@@ -216,19 +305,21 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         payload: Any = None,
         refresh: Iterable[str] | None = None,
         fallback: tuple[str, str, Any] | None = None,
+        fallback_status: frozenset[int] = _NOT_FOUND_STATUS,
     ) -> None:
         """Send a command and read back the affected properties.
 
-        ``fallback`` is an alternative (method, path, payload) for older
+        ``fallback`` is an alternative (method, path, payload) that is tried
+        when the camera answers with one of ``fallback_status``, e.g. older
         firmware that does not know the preferred call.
         """
         try:
             try:
                 await self._async_send(method, path, payload)
             except ApiError as err:
-                if fallback is None or err.status not in _NOT_FOUND_STATUS:
+                if fallback is None or err.status not in fallback_status:
                     raise
-                _LOGGER.debug("%s not supported, falling back to %s", path, fallback[1])
+                _LOGGER.debug("%s answered %s, trying %s", path, err.status, fallback)
                 await self._async_send(*fallback)
         except ApiError as err:
             raise HomeAssistantError(
@@ -272,7 +363,7 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _LOGGER.debug("Could not read back %s: %s", path, result)
             else:
                 data[path] = result
-        self.async_set_updated_data(data)
+        self._set_data(data)
 
     # ------------------------------------------------------------------
     # Websocket
@@ -298,6 +389,9 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_websocket_loop(self) -> None:
         retry = _WS_RETRY_MIN
         while not self._stopping:
+            # While the camera is offline the poller checks for its return;
+            # the websocket reconnects as soon as it is back.
+            await self._online_event.wait()
             try:
                 self._ws = await self.api.ws_connect()
             except WebsocketUnsupported as err:
@@ -409,6 +503,5 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._push_unsub = None
         if not self._pending_push or self._stopping:
             return
-        data = {**(self.data or {}), **self._pending_push}
-        self._pending_push = {}
-        self.async_set_updated_data(data)
+        pending, self._pending_push = self._pending_push, {}
+        self._set_data({**(self.data or {}), **pending})
