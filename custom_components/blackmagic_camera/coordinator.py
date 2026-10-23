@@ -14,6 +14,7 @@ import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryError, HomeAssistantError
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -52,6 +53,12 @@ _READ_BACK_DELAY = 0.25
 _PUSH_DEBOUNCE = 0.2
 _WS_RETRY_MIN = 5
 _WS_RETRY_MAX = 60
+# A camera without (working) websocket is asked again after this long, or
+# right away when it comes back online.
+_WS_UNSUPPORTED_RETRY = 600
+
+REASON_UNREACHABLE = "unreachable"
+REASON_API_UNAVAILABLE = "api_unavailable"
 # Answers meaning "this firmware does not know that call".
 _NOT_FOUND_STATUS = frozenset({404, 405, 501})
 
@@ -92,6 +99,8 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.api = api
         self.capabilities = CameraCapabilities.minimal()
         self.online = False
+        # Why the camera is offline: unreachable, or answering without API.
+        self.offline_reason: str | None = None
         self.websocket_connected = False
         # Properties changed by the current update; None means "everything".
         self.changed_paths: frozenset[str] | None = None
@@ -104,6 +113,8 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._stopping = False
         self._backoff: float | None = None
         self._online_event = asyncio.Event()
+        self._ws_wakeup = asyncio.Event()
+        self._issue_id = f"api_unavailable_{entry.entry_id}"
         self._pending_push: dict[str, Any] = {}
         self._push_unsub: CALLBACK_TYPE | None = None
         self._ws: aiohttp.ClientWebSocketResponse | None = None
@@ -127,15 +138,10 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 translation_domain=DOMAIN, translation_key="invalid_auth"
             ) from err
         except BlackmagicCameraError as err:
-            _LOGGER.info(
-                "Camera %s is offline (%s); setting up with cached features",
-                self.api.host,
-                err,
-            )
             stored = await self._store.async_load()
             if stored:
                 self.capabilities = CameraCapabilities.from_dict(stored)
-            self._set_offline()
+            self._set_offline(err)
             self.async_set_updated_data({})
             return
 
@@ -155,20 +161,62 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _LOGGER.info("Camera %s is back online", self.api.host)
             self.online = True
             self._poll_count = 0  # start with a full poll
+            self._ws_wakeup.set()
+        if self.offline_reason == REASON_API_UNAVAILABLE:
+            ir.async_delete_issue(self.hass, DOMAIN, self._issue_id)
+        self.offline_reason = None
         self._backoff = None
         self.update_interval = self.scan_interval
         self._online_event.set()
 
     @callback
-    def _set_offline(self) -> None:
-        """Mark the camera offline and back off the next check."""
-        if self.online:
-            _LOGGER.info(
-                "Camera %s is offline; checking every %s s with back-off up to %s s",
-                self.api.host,
-                int(self.scan_interval.total_seconds()),
-                OFFLINE_RETRY_MAX,
-            )
+    def _set_offline(self, err: BlackmagicCameraError) -> None:
+        """Mark the camera offline and back off the next check.
+
+        A camera that answers HTTP but returns 404 for the REST API has the
+        API switched off (web media manager disabled, or set to HTTPS only);
+        that gets a hint in the log and a repair issue. A camera that does not
+        answer at all is simply switched off.
+        """
+        reason = (
+            REASON_API_UNAVAILABLE
+            if isinstance(err, ApiError) and err.status == 404
+            else REASON_UNREACHABLE
+        )
+        if reason != self.offline_reason:
+            if reason == REASON_API_UNAVAILABLE:
+                _LOGGER.info(
+                    "Camera %s answers, but its REST API is not available (HTTP 404). Is "
+                    "'Web media manager' enabled in Blackmagic Camera Setup? With 'Enabled "
+                    "with security only' turn on HTTPS in the integration. Checking every %s s "
+                    "with back-off up to %s s",
+                    self.api.host,
+                    int(self.scan_interval.total_seconds()),
+                    OFFLINE_RETRY_MAX,
+                )
+                ir.async_create_issue(
+                    self.hass,
+                    DOMAIN,
+                    self._issue_id,
+                    is_fixable=False,
+                    severity=ir.IssueSeverity.WARNING,
+                    translation_key="api_unavailable",
+                    translation_placeholders={
+                        "name": self.config_entry.title,
+                        "host": self.api.host,
+                    },
+                )
+            else:
+                if self.offline_reason == REASON_API_UNAVAILABLE:
+                    ir.async_delete_issue(self.hass, DOMAIN, self._issue_id)
+                _LOGGER.info(
+                    "Camera %s is offline (%s); checking every %s s with back-off up to %s s",
+                    self.api.host,
+                    err,
+                    int(self.scan_interval.total_seconds()),
+                    OFFLINE_RETRY_MAX,
+                )
+        self.offline_reason = reason
         self.online = False
         if self._backoff is None:
             self._backoff = self.scan_interval.total_seconds()
@@ -226,8 +274,8 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 raise UpdateFailed(
                     translation_domain=DOMAIN, translation_key="invalid_auth"
                 ) from err
-            except BlackmagicCameraError:
-                return self._still_offline()
+            except BlackmagicCameraError as err:
+                return self._still_offline(err)
             self._set_online()
             self.async_update_listeners()
 
@@ -238,9 +286,12 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         old = self.data or {}
         data = dict(old)
         connection_errors = 0
+        missing = 0
+        last_error: BlackmagicCameraError | None = None
         for path, result in zip(paths, results, strict=True):
             if isinstance(result, CannotConnect):
                 connection_errors += 1
+                last_error = result
             elif isinstance(result, InvalidAuth):
                 raise UpdateFailed(
                     translation_domain=DOMAIN, translation_key="invalid_auth"
@@ -250,13 +301,25 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 # (no lens attached, display unplugged, ...).
                 _LOGGER.debug("Property %s unavailable: %s", path, result)
                 data[path] = None
+                if result.status == 404:
+                    missing += 1
+                    last_error = result
             elif isinstance(result, BaseException):
                 raise UpdateFailed(f"Unexpected error reading {path}: {result!r}") from result
             else:
                 data[path] = result
 
-        if connection_errors * 2 > len(paths):
-            return self._still_offline()
+        if last_error is not None and (connection_errors + missing) * 2 > len(paths):
+            # Most reads failed: confirm with the product info before calling
+            # the camera offline (a few legitimately missing values are fine).
+            try:
+                await self.api.get(P_PRODUCT)
+            except InvalidAuth as err:
+                raise UpdateFailed(
+                    translation_domain=DOMAIN, translation_key="invalid_auth"
+                ) from err
+            except BlackmagicCameraError as err:
+                return self._still_offline(err)
         if connection_errors:
             _LOGGER.debug(
                 "%d of %d reads failed, keeping previous values", connection_errors, len(paths)
@@ -265,11 +328,11 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.changed_paths = frozenset(changed)
         return data
 
-    def _still_offline(self) -> dict[str, Any]:
+    def _still_offline(self, err: BlackmagicCameraError) -> dict[str, Any]:
         """Handle an unanswered check: offline is a state, not an error."""
-        was_online = self.online
-        self._set_offline()
-        if was_online:
+        previous = (self.online, self.offline_reason)
+        self._set_offline(err)
+        if previous != (self.online, self.offline_reason):
             self.async_update_listeners()
         return dict(self.data or {})
 
@@ -279,8 +342,8 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             caps, data = await async_probe_capabilities(self.api)
         except InvalidAuth as err:
             raise UpdateFailed(translation_domain=DOMAIN, translation_key="invalid_auth") from err
-        except BlackmagicCameraError:
-            return self._still_offline()
+        except BlackmagicCameraError as err:
+            return self._still_offline(err)
 
         self._capabilities_verified = True
         changed = not caps.same_features(self.capabilities)
@@ -387,27 +450,39 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             await self._ws.close()
 
     async def _async_websocket_loop(self) -> None:
+        """Keep the push connection up while the camera is online.
+
+        Nothing here ever gives up for good: a camera that rejects or lacks
+        the websocket is asked again after a long pause, or immediately once
+        it comes back online (e.g. after a reboot or a settings change).
+        """
         retry = _WS_RETRY_MIN
+        unsupported_logged = False
         while not self._stopping:
-            # While the camera is offline the poller checks for its return;
-            # the websocket reconnects as soon as it is back.
+            # While the camera is offline the poller checks for its return.
             await self._online_event.wait()
+            self._ws_wakeup.clear()
             try:
                 self._ws = await self.api.ws_connect()
             except WebsocketUnsupported as err:
-                _LOGGER.info("No websocket on %s (%s), using polling only", self.api.host, err)
-                return
+                if not unsupported_logged:
+                    _LOGGER.info("No websocket on %s (%s), polling instead", self.api.host, err)
+                    unsupported_logged = True
+                await self._async_ws_pause(_WS_UNSUPPORTED_RETRY)
+                continue
             except InvalidAuth:
                 _LOGGER.warning(
-                    "Websocket of %s rejected the credentials, using polling only", self.api.host
+                    "Websocket of %s rejected the credentials, polling instead", self.api.host
                 )
-                return
+                await self._async_ws_pause(_WS_UNSUPPORTED_RETRY)
+                continue
             except CannotConnect as err:
                 _LOGGER.debug("Websocket connect to %s failed: %s", self.api.host, err)
-                await asyncio.sleep(retry)
+                await self._async_ws_pause(retry)
                 retry = min(retry * 2, _WS_RETRY_MAX)
                 continue
 
+            unsupported_logged = False
             try:
                 await self._async_websocket_session(self._ws)
             finally:
@@ -418,7 +493,16 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 await self._ws.close()
                 self._ws = None
                 self._set_websocket_state(False)
-            await asyncio.sleep(retry)
+            await self._async_ws_pause(retry)
+
+    async def _async_ws_pause(self, seconds: float) -> None:
+        """Sleep, but wake up early when the camera comes back online."""
+        try:
+            async with asyncio.timeout(seconds):
+                await self._ws_wakeup.wait()
+        except TimeoutError:
+            # The normal case: the pause simply ran out.
+            _LOGGER.debug("Websocket retry for %s after %s s", self.api.host, seconds)
 
     async def _async_websocket_session(self, ws: aiohttp.ClientWebSocketResponse) -> None:
         """Subscribe and handle one websocket connection until it closes."""

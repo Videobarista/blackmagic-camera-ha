@@ -17,7 +17,7 @@ from custom_components.blackmagic_camera.const import DOMAIN
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er, issue_registry as ir
 
 from .conftest import BASE
 
@@ -209,6 +209,69 @@ async def test_camera_goes_offline(
     assert hass.states.get("binary_sensor.pyxis_6k_connection").state == STATE_ON
     assert coordinator.update_interval == timedelta(seconds=10)
     assert "is back online" in caplog.text
+
+
+async def test_rest_api_switched_off(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    mock_camera: Callable[..., None],
+    aioclient_mock: AiohttpClientMocker,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A camera answering 404 everywhere has its API off: offline plus a repair."""
+    mock_camera()
+    await _setup(hass, config_entry)
+    coordinator = config_entry.runtime_data
+
+    aioclient_mock.clear_requests()
+    missing = {"status": 404, "text": "Not Found"}
+    mock_camera(
+        {path: missing for path in [*coordinator.capabilities.supported, "/system/product"]}
+    )
+    freezer.tick(timedelta(seconds=11))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    connection = hass.states.get("binary_sensor.pyxis_6k_connection")
+    assert connection.state == STATE_OFF
+    assert connection.attributes["offline_reason"] == "api_unavailable"
+    assert hass.states.get("select.pyxis_6k_iso").state == STATE_UNAVAILABLE
+    issue_id = f"api_unavailable_{config_entry.entry_id}"
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id)
+    assert "Web media manager" in caplog.text
+
+    # API back on: online again and the repair disappears.
+    aioclient_mock.clear_requests()
+    mock_camera()
+    freezer.tick(timedelta(seconds=11))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert hass.states.get("binary_sensor.pyxis_6k_connection").state == STATE_ON
+    assert hass.states.get("select.pyxis_6k_iso").state == "400"
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
+async def test_many_missing_values_but_camera_online(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    mock_camera: Callable[..., None],
+    aioclient_mock: AiohttpClientMocker,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """Missing values alone do not make the camera offline while it answers."""
+    mock_camera()
+    await _setup(hass, config_entry)
+    coordinator = config_entry.runtime_data
+
+    aioclient_mock.clear_requests()
+    mock_camera({path: {"status": 404} for path in coordinator.capabilities.supported})
+    freezer.tick(timedelta(seconds=11))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert coordinator.online
+    assert hass.states.get("binary_sensor.pyxis_6k_connection").state == STATE_ON
+    assert hass.states.get("select.pyxis_6k_iso").state == STATE_UNAVAILABLE
 
 
 async def test_invalid_auth_fails_setup(

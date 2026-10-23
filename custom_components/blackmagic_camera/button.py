@@ -74,7 +74,10 @@ AUTO_WHITE_BALANCE = CameraButtonDescription(
 AUTOFOCUS = CameraButtonDescription(
     key="lens_autofocus",
     translation_key="lens_autofocus",
-    press_fn=lambda c: c.async_command("put", P_DO_AUTOFOCUS, refresh=(P_FOCUS,)),
+    # The camera wants a region of interest; the centre of the frame.
+    press_fn=lambda c: c.async_command(
+        "put", P_DO_AUTOFOCUS, {"position": {"x": 0.5, "y": 0.5}}, refresh=(P_FOCUS,)
+    ),
     available_fn=lambda e: e.prop_field("controllable", P_FOCUS_DESC) is not False,
 )
 PRERECORD = CameraButtonDescription(

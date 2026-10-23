@@ -252,7 +252,12 @@ async def test_color_correction(
     [
         ("button.pyxis_6k_capture_still", "post", "/transports/0/doStillCapture", None),
         ("button.pyxis_6k_auto_white_balance", "put", "/video/whiteBalance/doAuto", None),
-        ("button.pyxis_6k_lens_autofocus", "put", "/lens/focus/doAutoFocus", None),
+        (
+            "button.pyxis_6k_lens_autofocus",
+            "put",
+            "/lens/focus/doAutoFocus",
+            {"position": {"x": 0.5, "y": 0.5}},
+        ),
         ("button.pyxis_6k_start_prerecord", "post", "/transports/0/prerecord", None),
         (
             "button.pyxis_6k_function_button_f1",

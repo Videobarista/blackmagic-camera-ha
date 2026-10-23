@@ -116,5 +116,8 @@ class ConnectionBinarySensor(BlackmagicCameraEntity, BinarySensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return how state updates arrive."""
-        return {"push_updates": self.coordinator.websocket_connected}
+        """Return how state updates arrive and why the camera is offline."""
+        return {
+            "push_updates": self.coordinator.websocket_connected,
+            "offline_reason": self.coordinator.offline_reason,
+        }

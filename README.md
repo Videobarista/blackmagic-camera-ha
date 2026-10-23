@@ -173,6 +173,19 @@ Blackmagic RAW frame on the camera's media; it is not sent to Home Assistant.
 For a picture in Home Assistant, feed the camera's HDMI/SDI output into a
 streaming encoder or capture device that Home Assistant supports.
 
+## Troubleshooting
+
+The **Connection** sensor shows whether the camera answers; its
+`offline_reason` attribute tells why it does not:
+
+| `offline_reason` | Meaning | What to do |
+| --- | --- | --- |
+| `unreachable` | No answer at all | Camera off, asleep or not on the network. Nothing to do: it is picked up automatically. |
+| `api_unavailable` | The camera answers, but the REST API returns 404 | In Blackmagic Camera Setup → Network Access set **Web media manager** to **Enabled**. With **Enabled with security only**, reconfigure the integration with **Use HTTPS** and the camera's username and password. A repair notice is shown in Home Assistant while this lasts. |
+
+In both cases the integration keeps checking (every 10 s, backing off to 30 s)
+and recovers by itself, including the push connection.
+
 ## Removal
 
 1. **Settings → Devices & services → Blackmagic Camera → ⋮ → Delete**.

@@ -31,6 +31,34 @@ from homeassistant.util import dt as dt_util
 from .conftest import BASE, ENTRY_DATA, HOST
 
 
+def ws_sequence(*items: Any) -> AsyncMock:
+    """Return ws_connect results in order, then report no websocket forever."""
+    queue = list(items)
+
+    async def _connect() -> Any:
+        if not queue:
+            raise WebsocketUnsupported("no more sockets")
+        item = queue.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    return AsyncMock(side_effect=_connect)
+
+
+async def settle(hass: HomeAssistant) -> None:
+    """Let the websocket background task run."""
+    for _ in range(5):
+        await asyncio.sleep(0)
+        await hass.async_block_till_done()
+
+
+WS_PATCHES = (
+    "custom_components.blackmagic_camera.coordinator._WS_RETRY_MIN",
+    "custom_components.blackmagic_camera.coordinator._WS_UNSUPPORTED_RETRY",
+)
+
+
 class FakeWebsocket:
     """A websocket that replays messages and stays open until released."""
 
@@ -101,12 +129,9 @@ async def test_websocket_push(
     entry = MockConfigEntry(domain=DOMAIN, title="PYXIS 6K", data=dict(ENTRY_DATA))
     entry.add_to_hass(hass)
     with (
-        patch.object(
-            BlackmagicCameraApi,
-            "ws_connect",
-            AsyncMock(side_effect=[fake, WebsocketUnsupported("done")]),
-        ),
-        patch("custom_components.blackmagic_camera.coordinator._WS_RETRY_MIN", 0),
+        patch.object(BlackmagicCameraApi, "ws_connect", ws_sequence(fake)),
+        patch(WS_PATCHES[0], 0),
+        patch(WS_PATCHES[1], 3600),
     ):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -152,7 +177,7 @@ async def test_websocket_push(
 
         # Closing the socket falls back to polling.
         fake.release.set()
-        await hass.async_block_till_done(wait_background_tasks=True)
+        await settle(hass)
         assert not coordinator.websocket_connected
 
         assert await hass.config_entries.async_unload(entry.entry_id)
@@ -168,20 +193,17 @@ async def test_websocket_without_event_list(
     entry = MockConfigEntry(domain=DOMAIN, title="PYXIS 6K", data=dict(ENTRY_DATA))
     entry.add_to_hass(hass)
     with (
-        patch.object(
-            BlackmagicCameraApi,
-            "ws_connect",
-            AsyncMock(side_effect=[fake, WebsocketUnsupported("x")]),
-        ),
-        patch("custom_components.blackmagic_camera.coordinator._WS_RETRY_MIN", 0),
+        patch.object(BlackmagicCameraApi, "ws_connect", ws_sequence(fake)),
+        patch(WS_PATCHES[0], 0),
+        patch(WS_PATCHES[1], 3600),
     ):
         assert await hass.config_entries.async_setup(entry.entry_id)
-        await hass.async_block_till_done()
+        await settle(hass)
         coordinator = entry.runtime_data
         assert coordinator.capabilities.still_capture
         assert len(fake.sent) == len(coordinator.capabilities.state_paths())
         fake.release.set()
-        await hass.async_block_till_done(wait_background_tasks=True)
+        await settle(hass)
         assert await hass.config_entries.async_unload(entry.entry_id)
 
 
@@ -192,19 +214,51 @@ async def test_websocket_unavailable_keeps_polling(
     mock_camera()
     entry = MockConfigEntry(domain=DOMAIN, title="PYXIS 6K", data=dict(ENTRY_DATA))
     entry.add_to_hass(hass)
+    connect = ws_sequence(CannotConnect("down"), InvalidAuth("nope"))
     with (
-        patch.object(
-            BlackmagicCameraApi,
-            "ws_connect",
-            AsyncMock(side_effect=[CannotConnect("down"), InvalidAuth("nope")]),
-        ),
-        patch("custom_components.blackmagic_camera.coordinator._WS_RETRY_MIN", 0),
+        patch.object(BlackmagicCameraApi, "ws_connect", connect),
+        patch(WS_PATCHES[0], 0),
+        patch(WS_PATCHES[1], 3600),
     ):
         assert await hass.config_entries.async_setup(entry.entry_id)
-        await hass.async_block_till_done(wait_background_tasks=True)
-    assert not entry.runtime_data.websocket_connected
-    assert hass.states.get("select.pyxis_6k_iso").state == "400"
-    assert await hass.config_entries.async_unload(entry.entry_id)
+        await settle(hass)
+        assert connect.await_count == 2
+        assert not entry.runtime_data.websocket_connected
+        assert hass.states.get("select.pyxis_6k_iso").state == "400"
+        assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_websocket_retried_when_camera_returns(
+    hass: HomeAssistant, mock_camera: Callable[..., None]
+) -> None:
+    """A websocket refused during a reboot is retried once the camera is back."""
+    mock_camera()
+    fake = FakeWebsocket(
+        [{"type": "response", "id": 1, "data": {"action": "subscribe", "success": True}}]
+    )
+    connect = ws_sequence(WebsocketUnsupported("rebooting"), fake)
+    entry = MockConfigEntry(domain=DOMAIN, title="PYXIS 6K", data=dict(ENTRY_DATA))
+    entry.add_to_hass(hass)
+    with (
+        patch.object(BlackmagicCameraApi, "ws_connect", connect),
+        patch(WS_PATCHES[0], 0),
+        patch(WS_PATCHES[1], 3600),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await settle(hass)
+        coordinator = entry.runtime_data
+        assert connect.await_count == 1
+        assert not coordinator.websocket_connected
+
+        # Offline and back: the paused websocket loop wakes up at once.
+        coordinator._set_offline(CannotConnect("gone"))
+        coordinator._set_online()
+        await settle(hass)
+        assert connect.await_count == 2
+        assert coordinator.websocket_connected
+        fake.release.set()
+        await settle(hass)
+        assert await hass.config_entries.async_unload(entry.entry_id)
 
 
 async def test_diagnostics_redact_secrets(

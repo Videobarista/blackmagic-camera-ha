@@ -446,5 +446,11 @@
     "invalid_option": {
       "message": "{option} is geen geldige optie."
     }
+  },
+  "issues": {
+    "api_unavailable": {
+      "title": "{name}: REST API van de camera staat uit",
+      "description": "De camera op {host} antwoordt, maar de REST API geeft 404. Home Assistant blijft controleren en herstelt automatisch zodra de API terug is.\n\nZet in Blackmagic Camera Setup → Network Access **Web media manager** op **Enabled**. Koos je **Enabled with security only**, configureer deze integratie dan opnieuw met **HTTPS gebruiken** en de gebruikersnaam en het wachtwoord van de camera."
+    }
   }
 }
