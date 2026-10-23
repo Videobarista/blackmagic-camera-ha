@@ -1,0 +1,2 @@
+# Installs Home Assistant and the matching pytest plugins.
+pytest-homeassistant-custom-component

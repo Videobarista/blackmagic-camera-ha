@@ -1,0 +1,450 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to a Blackmagic camera",
+        "description": "Enable 'Web media manager' under Network Access in Blackmagic Camera Setup first; the REST API runs on it.",
+        "data": {
+          "host": "Host",
+          "use_https": "Use HTTPS",
+          "verify_ssl": "Verify SSL certificate",
+          "username": "Username",
+          "password": "Password"
+        },
+        "data_description": {
+          "host": "IP address or hostname of the camera, e.g. 192.168.1.50 or PYXIS-6K.local.",
+          "use_https": "Turn on when web media manager is set to 'Enabled with security only'.",
+          "verify_ssl": "Leave off for the camera's default self-signed certificate.",
+          "username": "Only needed when secure login is set in Blackmagic Camera Setup.",
+          "password": "Only needed when secure login is set in Blackmagic Camera Setup."
+        }
+      },
+      "reconfigure": {
+        "title": "Change connection",
+        "description": "Update how Home Assistant reaches the camera.",
+        "data": {
+          "host": "Host",
+          "use_https": "Use HTTPS",
+          "verify_ssl": "Verify SSL certificate",
+          "username": "Username",
+          "password": "Password"
+        },
+        "data_description": {
+          "host": "IP address or hostname of the camera, e.g. 192.168.1.50 or PYXIS-6K.local.",
+          "use_https": "Turn on when web media manager is set to 'Enabled with security only'.",
+          "verify_ssl": "Leave off for the camera's default self-signed certificate.",
+          "username": "Only needed when secure login is set in Blackmagic Camera Setup.",
+          "password": "Only needed when secure login is set in Blackmagic Camera Setup."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect. Check the address and that web media manager is enabled.",
+      "invalid_auth": "Invalid username or password.",
+      "unknown": "Unexpected error, see the log."
+    },
+    "abort": {
+      "already_configured": "This camera is already configured.",
+      "reconfigure_successful": "The connection was updated."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Update options",
+        "description": "State changes are pushed by the camera when possible; polling covers the rest.",
+        "data": {
+          "scan_interval": "Polling interval",
+          "use_websocket": "Use push updates (websocket)"
+        },
+        "data_description": {
+          "scan_interval": "Seconds between polls for properties the camera does not push.",
+          "use_websocket": "Turn off to rely on polling only."
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "connection": {
+        "name": "Connection"
+      },
+      "prerecording": {
+        "name": "Prerecording"
+      },
+      "reference_lock": {
+        "name": "Reference lock"
+      },
+      "stream_available": {
+        "name": "Stream available"
+      }
+    },
+    "button": {
+      "capture_still": {
+        "name": "Capture still"
+      },
+      "auto_white_balance": {
+        "name": "Auto white balance"
+      },
+      "lens_autofocus": {
+        "name": "Lens autofocus"
+      },
+      "start_prerecord": {
+        "name": "Start prerecord"
+      },
+      "panel_button": {
+        "name": "Function button {button}"
+      },
+      "color_correction_reset": {
+        "name": "Color correction reset"
+      }
+    },
+    "number": {
+      "white_balance": {
+        "name": "White balance"
+      },
+      "tint": {
+        "name": "Tint"
+      },
+      "lens_iris": {
+        "name": "Lens iris"
+      },
+      "lens_focus": {
+        "name": "Lens focus"
+      },
+      "lens_zoom": {
+        "name": "Lens zoom"
+      },
+      "focus_assist_intensity": {
+        "name": "Focus assist intensity"
+      },
+      "safe_area_percent": {
+        "name": "Safe area size"
+      },
+      "audio_gain": {
+        "name": "Audio {channel} gain"
+      },
+      "monitor_brightness": {
+        "name": "Monitor {display} brightness"
+      },
+      "color_lift_red": {
+        "name": "Color lift red"
+      },
+      "color_lift_green": {
+        "name": "Color lift green"
+      },
+      "color_lift_blue": {
+        "name": "Color lift blue"
+      },
+      "color_lift_luma": {
+        "name": "Color lift luma"
+      },
+      "color_gamma_red": {
+        "name": "Color gamma red"
+      },
+      "color_gamma_green": {
+        "name": "Color gamma green"
+      },
+      "color_gamma_blue": {
+        "name": "Color gamma blue"
+      },
+      "color_gamma_luma": {
+        "name": "Color gamma luma"
+      },
+      "color_gain_red": {
+        "name": "Color gain red"
+      },
+      "color_gain_green": {
+        "name": "Color gain green"
+      },
+      "color_gain_blue": {
+        "name": "Color gain blue"
+      },
+      "color_gain_luma": {
+        "name": "Color gain luma"
+      },
+      "color_offset_red": {
+        "name": "Color offset red"
+      },
+      "color_offset_green": {
+        "name": "Color offset green"
+      },
+      "color_offset_blue": {
+        "name": "Color offset blue"
+      },
+      "color_offset_luma": {
+        "name": "Color offset luma"
+      },
+      "color_contrast_pivot": {
+        "name": "Color contrast pivot"
+      },
+      "color_contrast": {
+        "name": "Color contrast"
+      },
+      "color_hue": {
+        "name": "Color hue"
+      },
+      "color_saturation": {
+        "name": "Color saturation"
+      },
+      "color_luma_contribution": {
+        "name": "Color luma contribution"
+      }
+    },
+    "select": {
+      "tally": {
+        "name": "Tally",
+        "state": {
+          "none": "Off",
+          "preview": "Preview",
+          "program": "Program"
+        }
+      },
+      "iso": {
+        "name": "ISO"
+      },
+      "gain": {
+        "name": "Gain"
+      },
+      "shutter": {
+        "name": "Shutter"
+      },
+      "nd_filter": {
+        "name": "ND filter"
+      },
+      "auto_exposure": {
+        "name": "Auto exposure",
+        "state": {
+          "off": "Off",
+          "continuous": "Continuous",
+          "one_shot": "One shot"
+        }
+      },
+      "preset": {
+        "name": "Preset"
+      },
+      "shutter_measurement": {
+        "name": "Shutter measurement",
+        "state": {
+          "shutter_angle": "Shutter angle",
+          "shutter_speed": "Shutter speed"
+        }
+      },
+      "detail_sharpening_level": {
+        "name": "Detail sharpening level",
+        "state": {
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
+        }
+      },
+      "dynamic_range": {
+        "name": "Dynamic range",
+        "state": {
+          "video": "Video",
+          "film": "Film",
+          "extended_video": "Extended video",
+          "pq": "PQ",
+          "hlg": "HLG",
+          "da_vinci": "DaVinci"
+        }
+      },
+      "active_media": {
+        "name": "Active media"
+      },
+      "prerecord_duration": {
+        "name": "Prerecord duration"
+      },
+      "lens_autofocus_mode": {
+        "name": "Lens autofocus mode",
+        "state": {
+          "one_shot": "One shot",
+          "continuous": "Continuous",
+          "track_object": "Track object",
+          "track_face": "Track face"
+        }
+      },
+      "focus_assist_mode": {
+        "name": "Focus assist mode",
+        "state": {
+          "peak": "Peak",
+          "colored_lines": "Colored lines"
+        }
+      },
+      "focus_assist_color": {
+        "name": "Focus assist color",
+        "state": {
+          "red": "Red",
+          "green": "Green",
+          "blue": "Blue",
+          "white": "White",
+          "black": "Black"
+        }
+      },
+      "frame_guide_ratio": {
+        "name": "Frame guide ratio"
+      },
+      "audio_input": {
+        "name": "Audio {channel} input"
+      }
+    },
+    "sensor": {
+      "remaining_record_time": {
+        "name": "Remaining record time"
+      },
+      "battery": {
+        "name": "Battery"
+      },
+      "voltage": {
+        "name": "Voltage"
+      },
+      "power_source": {
+        "name": "Power source",
+        "state": {
+          "battery": "Battery",
+          "ac": "AC",
+          "fiber": "Fiber",
+          "usb": "USB",
+          "poe": "PoE"
+        }
+      },
+      "lens_aperture": {
+        "name": "Lens aperture"
+      },
+      "lens_focal_length": {
+        "name": "Lens focal length"
+      },
+      "lens_autofocus_state": {
+        "name": "Lens autofocus state",
+        "state": {
+          "idle": "Idle",
+          "focusing": "Focusing",
+          "focused": "Focused",
+          "paused": "Paused",
+          "error": "Error"
+        }
+      },
+      "video_format": {
+        "name": "Video format"
+      },
+      "codec": {
+        "name": "Codec"
+      },
+      "frame_rate": {
+        "name": "Frame rate"
+      },
+      "recording_resolution": {
+        "name": "Recording resolution"
+      },
+      "transport_mode": {
+        "name": "Transport mode",
+        "state": {
+          "input_preview": "Preview",
+          "input_record": "Recording",
+          "output": "Playback"
+        }
+      },
+      "stream_status": {
+        "name": "Stream status",
+        "state": {
+          "idle": "Idle",
+          "connecting": "Connecting",
+          "streaming": "Streaming",
+          "flushing": "Flushing",
+          "interrupted": "Interrupted"
+        }
+      },
+      "stream_bitrate": {
+        "name": "Stream bitrate"
+      },
+      "stream_duration": {
+        "name": "Stream duration"
+      },
+      "stream_cache": {
+        "name": "Stream cache"
+      },
+      "stream_platform": {
+        "name": "Stream platform"
+      },
+      "media_slot": {
+        "name": "Media slot {slot}"
+      }
+    },
+    "switch": {
+      "record": {
+        "name": "Record"
+      },
+      "stream": {
+        "name": "Stream"
+      },
+      "color_bars": {
+        "name": "Color bars"
+      },
+      "program_feed_display": {
+        "name": "Program feed display"
+      },
+      "detail_sharpening": {
+        "name": "Detail sharpening"
+      },
+      "lens_image_stabilization": {
+        "name": "Lens image stabilization"
+      },
+      "lens_autofocus_enabled": {
+        "name": "Lens autofocus enabled"
+      },
+      "proxy_recording": {
+        "name": "Proxy recording"
+      },
+      "auto_prerecord": {
+        "name": "Auto prerecord"
+      },
+      "monitor_display_lut": {
+        "name": "Monitor {display} display LUT"
+      },
+      "monitor_zebra": {
+        "name": "Monitor {display} zebra"
+      },
+      "monitor_focus_assist": {
+        "name": "Monitor {display} focus assist"
+      },
+      "monitor_false_color": {
+        "name": "Monitor {display} false color"
+      },
+      "monitor_clean_feed": {
+        "name": "Monitor {display} clean feed"
+      },
+      "monitor_frame_guide": {
+        "name": "Monitor {display} frame guide"
+      },
+      "monitor_frame_grids": {
+        "name": "Monitor {display} frame grids"
+      },
+      "monitor_safe_area": {
+        "name": "Monitor {display} safe area"
+      },
+      "audio_phantom_power": {
+        "name": "Audio {channel} phantom power"
+      },
+      "audio_padding": {
+        "name": "Audio {channel} pad"
+      },
+      "audio_low_cut": {
+        "name": "Audio {channel} low cut filter"
+      }
+    }
+  },
+  "exceptions": {
+    "command_failed": {
+      "message": "The camera rejected the change to {path}: {error}"
+    },
+    "cannot_connect": {
+      "message": "Cannot reach the camera at {host}."
+    },
+    "invalid_auth": {
+      "message": "The camera rejected the username or password. Reconfigure the integration."
+    },
+    "invalid_option": {
+      "message": "{option} is not a valid option."
+    }
+  }
+}

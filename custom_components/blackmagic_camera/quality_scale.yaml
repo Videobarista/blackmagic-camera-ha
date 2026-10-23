@@ -1,0 +1,52 @@
+# Self assessment against the Home Assistant integration quality scale.
+# Custom integrations are not graded by Home Assistant; this file documents
+# that the integration is aligned with the Bronze tier.
+rules:
+  # Bronze
+  action-setup:
+    status: exempt
+    comment: The integration does not register service actions.
+  appropriate-polling: done
+  brands: done
+  common-modules: done
+  config-flow: done
+  config-flow-test-coverage: done
+  dependency-transparency: done
+  docs-actions:
+    status: exempt
+    comment: The integration does not register service actions.
+  docs-conditions:
+    status: exempt
+    comment: The integration does not provide conditions.
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal-instructions: done
+  docs-triggers:
+    status: exempt
+    comment: The integration does not provide triggers.
+  entity-event-setup:
+    status: exempt
+    comment: Entities do not subscribe to events; push updates are handled by the coordinator.
+  entity-unique-id: done
+  has-entity-name: done
+  runtime-data: done
+  test-before-configure: done
+  test-before-setup:
+    status: exempt
+    comment: >-
+      Cameras are often switched off. The config flow tests the connection;
+      at startup the integration sets up offline (entities unavailable, a
+      connectivity sensor shows the state) and reconnects automatically.
+  unique-config-entry: done
+
+  # Higher tiers are not a goal, these happen to be in place already
+  config-entry-unloading: done
+  diagnostics: done
+  entity-category: done
+  entity-disabled-by-default: done
+  entity-translations: done
+  entity-unavailable: done
+  exception-translations: done
+  icon-translations: done
+  parallel-updates: done
+  reconfiguration-flow: done

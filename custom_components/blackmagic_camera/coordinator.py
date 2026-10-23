@@ -1,0 +1,414 @@
+"""Data update coordinator for the Blackmagic Camera integration."""
+
+from __future__ import annotations
+
+import asyncio
+from collections.abc import Iterable
+from datetime import timedelta
+import json
+import logging
+from typing import Any
+
+import aiohttp
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.exceptions import ConfigEntryError, HomeAssistantError
+from homeassistant.helpers.storage import Store
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+
+from .api import (
+    ApiError,
+    BlackmagicCameraApi,
+    BlackmagicCameraError,
+    CannotConnect,
+    InvalidAuth,
+    WebsocketUnsupported,
+    gather_limited,
+)
+from .capabilities import CameraCapabilities, async_probe_capabilities
+from .const import (
+    CONF_SCAN_INTERVAL,
+    CONF_USE_WEBSOCKET,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_USE_WEBSOCKET,
+    DOMAIN,
+    FAST_PATHS,
+    MAX_PARALLEL_REQUESTS,
+    SAFETY_POLL_EVERY,
+    SLOW_POLL_EVERY,
+    STORAGE_VERSION,
+)
+
+_LOGGER = logging.getLogger(__name__)
+
+type BlackmagicCameraConfigEntry = ConfigEntry[BlackmagicCameraCoordinator]
+
+# Delay before reading back a property after changing it.
+_READ_BACK_DELAY = 0.25
+# Websocket events are batched for this long before entities are updated.
+_PUSH_DEBOUNCE = 0.2
+_WS_RETRY_MIN = 5
+_WS_RETRY_MAX = 60
+# Answers meaning "this firmware does not know that call".
+_NOT_FOUND_STATUS = frozenset({404, 405, 501})
+
+
+class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+    """Keep the state of one camera up to date.
+
+    State arrives in two ways: properties pushed over the notification
+    websocket, and polling for everything the websocket does not cover (or
+    for everything when the websocket is unavailable).
+    """
+
+    config_entry: BlackmagicCameraConfigEntry
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: BlackmagicCameraConfigEntry,
+        api: BlackmagicCameraApi,
+    ) -> None:
+        """Initialize the coordinator."""
+        super().__init__(
+            hass,
+            _LOGGER,
+            config_entry=entry,
+            name=f"{DOMAIN} {entry.title}",
+            update_interval=timedelta(
+                seconds=entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+            ),
+            always_update=False,
+        )
+        self.api = api
+        self.capabilities = CameraCapabilities.minimal()
+        self.websocket_connected = False
+        self._use_websocket: bool = entry.options.get(CONF_USE_WEBSOCKET, DEFAULT_USE_WEBSOCKET)
+        self._store: Store[dict[str, Any]] = Store(
+            hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}"
+        )
+        self._capabilities_verified = False
+        self._poll_count = 0
+        self._stopping = False
+        self._pending_push: dict[str, Any] = {}
+        self._push_unsub: CALLBACK_TYPE | None = None
+        self._ws: aiohttp.ClientWebSocketResponse | None = None
+        self._ws_requests: dict[int, list[str]] = {}
+        self._ws_subscribed: set[str] = set()
+
+    # ------------------------------------------------------------------
+    # Setup
+    # ------------------------------------------------------------------
+    async def async_initialize(self) -> None:
+        """Detect features, falling back to the cached set when offline.
+
+        A camera that is switched off must not make the setup fail: entities
+        are created from the cached capabilities and become available as soon
+        as the camera answers again.
+        """
+        try:
+            caps, data = await async_probe_capabilities(self.api)
+        except InvalidAuth as err:
+            raise ConfigEntryError(
+                translation_domain=DOMAIN, translation_key="invalid_auth"
+            ) from err
+        except BlackmagicCameraError as err:
+            _LOGGER.info(
+                "Camera %s is not reachable (%s); setting up with cached features",
+                self.api.host,
+                err,
+            )
+            stored = await self._store.async_load()
+            if stored:
+                self.capabilities = CameraCapabilities.from_dict(stored)
+            return
+
+        self.capabilities = caps
+        self._capabilities_verified = True
+        self.async_set_updated_data(data)
+        await self._store.async_save(caps.as_dict())
+
+    # ------------------------------------------------------------------
+    # Polling
+    # ------------------------------------------------------------------
+    def _paths_to_poll(self) -> list[str]:
+        count = self._poll_count
+        self._poll_count += 1
+        paths = self.capabilities.state_paths()
+        if self.websocket_connected:
+            if count % SAFETY_POLL_EVERY == 0:
+                return paths
+            paths = [p for p in paths if p not in self._ws_subscribed]
+        if count % SLOW_POLL_EVERY == 0:
+            return paths
+        return [p for p in paths if p in FAST_PATHS]
+
+    async def _async_update_data(self) -> dict[str, Any]:
+        """Fetch the current state from the camera."""
+        if not self._capabilities_verified:
+            return await self._async_verify_capabilities()
+
+        paths = self._paths_to_poll()
+        if not paths:
+            return dict(self.data or {})
+        results = await gather_limited(MAX_PARALLEL_REQUESTS, *(self.api.get(p) for p in paths))
+        data = dict(self.data or {})
+        connection_errors = 0
+        for path, result in zip(paths, results, strict=True):
+            if isinstance(result, CannotConnect):
+                connection_errors += 1
+            elif isinstance(result, InvalidAuth):
+                raise UpdateFailed(
+                    translation_domain=DOMAIN, translation_key="invalid_auth"
+                ) from result
+            elif isinstance(result, ApiError):
+                # The property exists but has no value right now
+                # (no lens attached, display unplugged, ...).
+                _LOGGER.debug("Property %s unavailable: %s", path, result)
+                data[path] = None
+            elif isinstance(result, BaseException):
+                raise UpdateFailed(f"Unexpected error reading {path}: {result!r}") from result
+            else:
+                data[path] = result
+
+        if connection_errors * 2 > len(paths):
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="cannot_connect",
+                translation_placeholders={"host": self.api.host},
+            )
+        if connection_errors:
+            _LOGGER.debug(
+                "%d of %d reads failed, keeping previous values", connection_errors, len(paths)
+            )
+        return data
+
+    async def _async_verify_capabilities(self) -> dict[str, Any]:
+        """Probe a camera that was offline when Home Assistant started."""
+        try:
+            caps, data = await async_probe_capabilities(self.api)
+        except InvalidAuth as err:
+            raise UpdateFailed(translation_domain=DOMAIN, translation_key="invalid_auth") from err
+        except BlackmagicCameraError as err:
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="cannot_connect",
+                translation_placeholders={"host": self.api.host},
+            ) from err
+
+        self._capabilities_verified = True
+        changed = not caps.same_features(self.capabilities)
+        self.capabilities = caps
+        await self._store.async_save(caps.as_dict())
+        if changed:
+            _LOGGER.info("Camera %s features changed, reloading entities", self.api.host)
+            self.hass.config_entries.async_schedule_reload(self.config_entry.entry_id)
+        return data
+
+    # ------------------------------------------------------------------
+    # Commands
+    # ------------------------------------------------------------------
+    async def async_command(
+        self,
+        method: str,
+        path: str,
+        payload: Any = None,
+        refresh: Iterable[str] | None = None,
+        fallback: tuple[str, str, Any] | None = None,
+    ) -> None:
+        """Send a command and read back the affected properties.
+
+        ``fallback`` is an alternative (method, path, payload) for older
+        firmware that does not know the preferred call.
+        """
+        try:
+            try:
+                await self._async_send(method, path, payload)
+            except ApiError as err:
+                if fallback is None or err.status not in _NOT_FOUND_STATUS:
+                    raise
+                _LOGGER.debug("%s not supported, falling back to %s", path, fallback[1])
+                await self._async_send(*fallback)
+        except ApiError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="command_failed",
+                translation_placeholders={"path": path, "error": str(err)},
+            ) from err
+        except InvalidAuth as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="invalid_auth"
+            ) from err
+        except CannotConnect as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="cannot_connect",
+                translation_placeholders={"host": self.api.host},
+            ) from err
+
+        to_refresh = list(refresh) if refresh is not None else [path]
+        if to_refresh:
+            await asyncio.sleep(_READ_BACK_DELAY)
+            await self.async_refresh_paths(to_refresh)
+
+    async def _async_send(self, method: str, path: str, payload: Any) -> None:
+        if method == "put":
+            await self.api.put(path, payload)
+        else:
+            await self.api.post(path, payload)
+
+    async def async_refresh_paths(self, paths: Iterable[str]) -> None:
+        """Read a few properties and push them to the entities."""
+        wanted = [p for p in paths if self.capabilities.supports(p)]
+        if not wanted:
+            return
+        results = await gather_limited(MAX_PARALLEL_REQUESTS, *(self.api.get(p) for p in wanted))
+        data = dict(self.data or {})
+        for path, result in zip(wanted, results, strict=True):
+            if isinstance(result, ApiError):
+                data[path] = None
+            elif isinstance(result, BaseException):
+                _LOGGER.debug("Could not read back %s: %s", path, result)
+            else:
+                data[path] = result
+        self.async_set_updated_data(data)
+
+    # ------------------------------------------------------------------
+    # Websocket
+    # ------------------------------------------------------------------
+    @callback
+    def async_start_websocket(self) -> None:
+        """Start listening for pushed state changes."""
+        if not self._use_websocket:
+            return
+        self.config_entry.async_on_unload(self._async_stop_websocket)
+        self.config_entry.async_create_background_task(
+            self.hass, self._async_websocket_loop(), f"{DOMAIN} websocket {self.api.host}"
+        )
+
+    async def _async_stop_websocket(self) -> None:
+        self._stopping = True
+        if self._push_unsub is not None:
+            self._push_unsub()
+            self._push_unsub = None
+        if self._ws is not None and not self._ws.closed:
+            await self._ws.close()
+
+    async def _async_websocket_loop(self) -> None:
+        retry = _WS_RETRY_MIN
+        while not self._stopping:
+            try:
+                self._ws = await self.api.ws_connect()
+            except WebsocketUnsupported as err:
+                _LOGGER.info("No websocket on %s (%s), using polling only", self.api.host, err)
+                return
+            except InvalidAuth:
+                _LOGGER.warning(
+                    "Websocket of %s rejected the credentials, using polling only", self.api.host
+                )
+                return
+            except CannotConnect as err:
+                _LOGGER.debug("Websocket connect to %s failed: %s", self.api.host, err)
+                await asyncio.sleep(retry)
+                retry = min(retry * 2, _WS_RETRY_MAX)
+                continue
+
+            try:
+                await self._async_websocket_session(self._ws)
+            finally:
+                if self.websocket_connected:
+                    retry = _WS_RETRY_MIN
+                else:
+                    retry = min(retry * 2, _WS_RETRY_MAX)
+                await self._ws.close()
+                self._ws = None
+                self._set_websocket_state(False)
+            await asyncio.sleep(retry)
+
+    async def _async_websocket_session(self, ws: aiohttp.ClientWebSocketResponse) -> None:
+        """Subscribe and handle one websocket connection until it closes."""
+        self._ws_requests = {}
+        self._ws_subscribed = set()
+        paths = self.capabilities.state_paths()
+        events = set(self.capabilities.events)
+        if events:
+            # The camera announces what it can push: one request for all of it.
+            batches = [[p for p in paths if p in events]]
+        else:
+            # Unknown firmware: one request per property, so a property the
+            # firmware does not know only fails on its own and stays polled.
+            batches = [[p] for p in paths]
+        for request_id, batch in enumerate((b for b in batches if b), start=1):
+            self._ws_requests[request_id] = batch
+            await ws.send_json(
+                {
+                    "type": "request",
+                    "id": request_id,
+                    "data": {"action": "subscribe", "properties": batch},
+                }
+            )
+        async for msg in ws:
+            if msg.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.ERROR):
+                break
+            if msg.type == aiohttp.WSMsgType.TEXT:
+                self._handle_ws_text(msg.data)
+
+    @callback
+    def _handle_ws_text(self, raw: str) -> None:
+        """Process one websocket text frame."""
+        try:
+            message = json.loads(raw)
+        except ValueError:
+            _LOGGER.debug("Ignoring non JSON websocket frame: %s", raw[:200])
+            return
+        if not isinstance(message, dict) or not isinstance(message.get("data"), dict):
+            return
+
+        data: dict[str, Any] = message["data"]
+        action = data.get("action")
+        if message.get("type") == "response" and action == "subscribe":
+            values = data.get("values")
+            if isinstance(values, dict):
+                self._queue_push(values)
+            if data.get("success", True):
+                self._ws_subscribed.update(self._ws_requests.get(message.get("id", -1), ()))
+                self._ws_subscribed.update(
+                    p for p in data.get("properties") or [] if isinstance(p, str)
+                )
+                self._set_websocket_state(bool(self._ws_subscribed))
+        elif action == "propertyValueChanged" and isinstance(data.get("property"), str):
+            self._queue_push({data["property"]: data.get("value")})
+
+    @callback
+    def _set_websocket_state(self, connected: bool) -> None:
+        if connected == self.websocket_connected:
+            return
+        self.websocket_connected = connected
+        _LOGGER.debug("Websocket of %s %s", self.api.host, "subscribed" if connected else "closed")
+        if not connected:
+            self._ws_subscribed = set()
+            if not self._stopping:
+                # Find out right away whether the camera went offline.
+                self.config_entry.async_create_task(
+                    self.hass, self.async_request_refresh(), "blackmagic_camera refresh"
+                )
+        self.async_update_listeners()
+
+    @callback
+    def _queue_push(self, values: dict[str, Any]) -> None:
+        tracked = {k: v for k, v in values.items() if self.capabilities.supports(k)}
+        if not tracked:
+            return
+        self._pending_push.update(tracked)
+        if self._push_unsub is None:
+            self._push_unsub = self.hass.loop.call_later(_PUSH_DEBOUNCE, self._flush_push).cancel
+
+    @callback
+    def _flush_push(self) -> None:
+        self._push_unsub = None
+        if not self._pending_push or self._stopping:
+            return
+        data = {**(self.data or {}), **self._pending_push}
+        self._pending_push = {}
+        self.async_set_updated_data(data)

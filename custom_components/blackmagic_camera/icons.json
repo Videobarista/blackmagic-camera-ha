@@ -1,0 +1,307 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "connection": {
+        "default": "mdi:lan-connect",
+        "state": {
+          "off": "mdi:lan-disconnect"
+        }
+      },
+      "prerecording": {
+        "default": "mdi:record-rec"
+      },
+      "reference_lock": {
+        "default": "mdi:sine-wave"
+      },
+      "stream_available": {
+        "default": "mdi:broadcast"
+      }
+    },
+    "button": {
+      "capture_still": {
+        "default": "mdi:camera-iris"
+      },
+      "auto_white_balance": {
+        "default": "mdi:white-balance-auto"
+      },
+      "lens_autofocus": {
+        "default": "mdi:image-filter-center-focus"
+      },
+      "start_prerecord": {
+        "default": "mdi:record-circle-outline"
+      },
+      "panel_button": {
+        "default": "mdi:gesture-tap-button"
+      },
+      "color_correction_reset": {
+        "default": "mdi:palette-swatch-variant"
+      }
+    },
+    "number": {
+      "white_balance": {
+        "default": "mdi:white-balance-sunny"
+      },
+      "tint": {
+        "default": "mdi:palette"
+      },
+      "lens_iris": {
+        "default": "mdi:camera-iris"
+      },
+      "lens_focus": {
+        "default": "mdi:image-filter-center-focus-weak"
+      },
+      "lens_zoom": {
+        "default": "mdi:magnify-plus-outline"
+      },
+      "focus_assist_intensity": {
+        "default": "mdi:image-filter-center-focus"
+      },
+      "safe_area_percent": {
+        "default": "mdi:crop-free"
+      },
+      "audio_gain": {
+        "default": "mdi:knob"
+      },
+      "monitor_brightness": {
+        "default": "mdi:brightness-6"
+      },
+      "color_lift_red": {
+        "default": "mdi:palette-swatch"
+      },
+      "color_lift_green": {
+        "default": "mdi:palette-swatch"
+      },
+      "color_lift_blue": {
+        "default": "mdi:palette-swatch"
+      },
+      "color_lift_luma": {
+        "default": "mdi:palette-swatch"
+      },
+      "color_gamma_red": {
+        "default": "mdi:palette-swatch"
+      },
+      "color_gamma_green": {
+        "default": "mdi:palette-swatch"
+      },
+      "color_gamma_blue": {
+        "default": "mdi:palette-swatch"
+      },
+      "color_gamma_luma": {
+        "default": "mdi:palette-swatch"
+      },
+      "color_gain_red": {
+        "default": "mdi:palette-swatch"
+      },
+      "color_gain_green": {
+        "default": "mdi:palette-swatch"
+      },
+      "color_gain_blue": {
+        "default": "mdi:palette-swatch"
+      },
+      "color_gain_luma": {
+        "default": "mdi:palette-swatch"
+      },
+      "color_offset_red": {
+        "default": "mdi:palette-swatch"
+      },
+      "color_offset_green": {
+        "default": "mdi:palette-swatch"
+      },
+      "color_offset_blue": {
+        "default": "mdi:palette-swatch"
+      },
+      "color_offset_luma": {
+        "default": "mdi:palette-swatch"
+      },
+      "color_contrast_pivot": {
+        "default": "mdi:contrast-box"
+      },
+      "color_contrast": {
+        "default": "mdi:contrast-box"
+      },
+      "color_hue": {
+        "default": "mdi:palette"
+      },
+      "color_saturation": {
+        "default": "mdi:palette"
+      },
+      "color_luma_contribution": {
+        "default": "mdi:brightness-6"
+      }
+    },
+    "select": {
+      "tally": {
+        "default": "mdi:circle-slice-8"
+      },
+      "iso": {
+        "default": "mdi:alpha-i-box-outline"
+      },
+      "gain": {
+        "default": "mdi:brightness-percent"
+      },
+      "shutter": {
+        "default": "mdi:camera-timer"
+      },
+      "nd_filter": {
+        "default": "mdi:sunglasses"
+      },
+      "auto_exposure": {
+        "default": "mdi:brightness-auto"
+      },
+      "preset": {
+        "default": "mdi:tune-variant"
+      },
+      "shutter_measurement": {
+        "default": "mdi:angle-acute"
+      },
+      "detail_sharpening_level": {
+        "default": "mdi:image-filter-hdr"
+      },
+      "dynamic_range": {
+        "default": "mdi:chart-bell-curve"
+      },
+      "active_media": {
+        "default": "mdi:sd"
+      },
+      "prerecord_duration": {
+        "default": "mdi:timer-outline"
+      },
+      "lens_autofocus_mode": {
+        "default": "mdi:focus-auto"
+      },
+      "focus_assist_mode": {
+        "default": "mdi:image-filter-center-focus"
+      },
+      "focus_assist_color": {
+        "default": "mdi:palette"
+      },
+      "frame_guide_ratio": {
+        "default": "mdi:aspect-ratio"
+      },
+      "audio_input": {
+        "default": "mdi:microphone"
+      }
+    },
+    "sensor": {
+      "remaining_record_time": {
+        "default": "mdi:timer-sand"
+      },
+      "battery": {
+        "default": "mdi:battery"
+      },
+      "voltage": {
+        "default": "mdi:flash-triangle-outline"
+      },
+      "power_source": {
+        "default": "mdi:power-plug"
+      },
+      "lens_aperture": {
+        "default": "mdi:camera-iris"
+      },
+      "lens_focal_length": {
+        "default": "mdi:arrow-expand-horizontal"
+      },
+      "lens_autofocus_state": {
+        "default": "mdi:focus-field"
+      },
+      "video_format": {
+        "default": "mdi:video-box"
+      },
+      "codec": {
+        "default": "mdi:file-video"
+      },
+      "frame_rate": {
+        "default": "mdi:filmstrip"
+      },
+      "recording_resolution": {
+        "default": "mdi:monitor-screenshot"
+      },
+      "transport_mode": {
+        "default": "mdi:play-pause"
+      },
+      "stream_status": {
+        "default": "mdi:broadcast"
+      },
+      "stream_bitrate": {
+        "default": "mdi:speedometer"
+      },
+      "stream_duration": {
+        "default": "mdi:timer-outline"
+      },
+      "stream_cache": {
+        "default": "mdi:tray-full"
+      },
+      "stream_platform": {
+        "default": "mdi:web"
+      },
+      "media_slot": {
+        "default": "mdi:sd"
+      }
+    },
+    "switch": {
+      "record": {
+        "default": "mdi:record-rec",
+        "state": {
+          "off": "mdi:record"
+        }
+      },
+      "stream": {
+        "default": "mdi:broadcast"
+      },
+      "color_bars": {
+        "default": "mdi:television-classic"
+      },
+      "program_feed_display": {
+        "default": "mdi:monitor-eye"
+      },
+      "detail_sharpening": {
+        "default": "mdi:image-filter-hdr"
+      },
+      "lens_image_stabilization": {
+        "default": "mdi:vibrate"
+      },
+      "lens_autofocus_enabled": {
+        "default": "mdi:focus-auto"
+      },
+      "proxy_recording": {
+        "default": "mdi:file-video-outline"
+      },
+      "auto_prerecord": {
+        "default": "mdi:record-circle-outline"
+      },
+      "monitor_display_lut": {
+        "default": "mdi:palette-outline"
+      },
+      "monitor_zebra": {
+        "default": "mdi:texture-box"
+      },
+      "monitor_focus_assist": {
+        "default": "mdi:image-filter-center-focus"
+      },
+      "monitor_false_color": {
+        "default": "mdi:gradient-horizontal"
+      },
+      "monitor_clean_feed": {
+        "default": "mdi:monitor"
+      },
+      "monitor_frame_guide": {
+        "default": "mdi:aspect-ratio"
+      },
+      "monitor_frame_grids": {
+        "default": "mdi:grid"
+      },
+      "monitor_safe_area": {
+        "default": "mdi:crop-free"
+      },
+      "audio_phantom_power": {
+        "default": "mdi:flash"
+      },
+      "audio_padding": {
+        "default": "mdi:volume-minus"
+      },
+      "audio_low_cut": {
+        "default": "mdi:sine-wave"
+      }
+    }
+  }
+}

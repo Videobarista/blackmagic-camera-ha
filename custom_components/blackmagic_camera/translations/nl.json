@@ -1,0 +1,450 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Verbinden met een Blackmagic-camera",
+        "description": "Zet eerst 'Web media manager' aan onder Network Access in Blackmagic Camera Setup; de REST API draait daarop.",
+        "data": {
+          "host": "Host",
+          "use_https": "HTTPS gebruiken",
+          "verify_ssl": "SSL-certificaat controleren",
+          "username": "Gebruikersnaam",
+          "password": "Wachtwoord"
+        },
+        "data_description": {
+          "host": "IP-adres of hostnaam van de camera, bijv. 192.168.1.50 of PYXIS-6K.local.",
+          "use_https": "Aanzetten als web media manager op 'Enabled with security only' staat.",
+          "verify_ssl": "Uit laten voor het standaard self-signed certificaat van de camera.",
+          "username": "Alleen nodig als secure login is ingesteld in Blackmagic Camera Setup.",
+          "password": "Alleen nodig als secure login is ingesteld in Blackmagic Camera Setup."
+        }
+      },
+      "reconfigure": {
+        "title": "Verbinding wijzigen",
+        "description": "Pas aan hoe Home Assistant de camera bereikt.",
+        "data": {
+          "host": "Host",
+          "use_https": "HTTPS gebruiken",
+          "verify_ssl": "SSL-certificaat controleren",
+          "username": "Gebruikersnaam",
+          "password": "Wachtwoord"
+        },
+        "data_description": {
+          "host": "IP-adres of hostnaam van de camera, bijv. 192.168.1.50 of PYXIS-6K.local.",
+          "use_https": "Aanzetten als web media manager op 'Enabled with security only' staat.",
+          "verify_ssl": "Uit laten voor het standaard self-signed certificaat van de camera.",
+          "username": "Alleen nodig als secure login is ingesteld in Blackmagic Camera Setup.",
+          "password": "Alleen nodig als secure login is ingesteld in Blackmagic Camera Setup."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kan geen verbinding maken. Controleer het adres en of web media manager aan staat.",
+      "invalid_auth": "Ongeldige gebruikersnaam of wachtwoord.",
+      "unknown": "Onverwachte fout, zie het logboek."
+    },
+    "abort": {
+      "already_configured": "Deze camera is al geconfigureerd.",
+      "reconfigure_successful": "De verbinding is bijgewerkt."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Update-opties",
+        "description": "Statuswijzigingen worden waar mogelijk door de camera gepusht; polling doet de rest.",
+        "data": {
+          "scan_interval": "Polling-interval",
+          "use_websocket": "Push-updates gebruiken (websocket)"
+        },
+        "data_description": {
+          "scan_interval": "Seconden tussen polls voor waarden die de camera niet pusht.",
+          "use_websocket": "Uitzetten om alleen polling te gebruiken."
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "connection": {
+        "name": "Verbinding"
+      },
+      "prerecording": {
+        "name": "Prerecording"
+      },
+      "reference_lock": {
+        "name": "Referentie lock"
+      },
+      "stream_available": {
+        "name": "Stream beschikbaar"
+      }
+    },
+    "button": {
+      "capture_still": {
+        "name": "Still vastleggen"
+      },
+      "auto_white_balance": {
+        "name": "Automatische witbalans"
+      },
+      "lens_autofocus": {
+        "name": "Lens autofocus"
+      },
+      "start_prerecord": {
+        "name": "Prerecord starten"
+      },
+      "panel_button": {
+        "name": "Functieknop {button}"
+      },
+      "color_correction_reset": {
+        "name": "Kleurcorrectie resetten"
+      }
+    },
+    "number": {
+      "white_balance": {
+        "name": "Witbalans"
+      },
+      "tint": {
+        "name": "Tint"
+      },
+      "lens_iris": {
+        "name": "Lens diafragma"
+      },
+      "lens_focus": {
+        "name": "Lens focus"
+      },
+      "lens_zoom": {
+        "name": "Lens zoom"
+      },
+      "focus_assist_intensity": {
+        "name": "Focus assist intensiteit"
+      },
+      "safe_area_percent": {
+        "name": "Safe area grootte"
+      },
+      "audio_gain": {
+        "name": "Audio {channel} gain"
+      },
+      "monitor_brightness": {
+        "name": "Monitor {display} helderheid"
+      },
+      "color_lift_red": {
+        "name": "Kleur lift rood"
+      },
+      "color_lift_green": {
+        "name": "Kleur lift groen"
+      },
+      "color_lift_blue": {
+        "name": "Kleur lift blauw"
+      },
+      "color_lift_luma": {
+        "name": "Kleur lift luma"
+      },
+      "color_gamma_red": {
+        "name": "Kleur gamma rood"
+      },
+      "color_gamma_green": {
+        "name": "Kleur gamma groen"
+      },
+      "color_gamma_blue": {
+        "name": "Kleur gamma blauw"
+      },
+      "color_gamma_luma": {
+        "name": "Kleur gamma luma"
+      },
+      "color_gain_red": {
+        "name": "Kleur gain rood"
+      },
+      "color_gain_green": {
+        "name": "Kleur gain groen"
+      },
+      "color_gain_blue": {
+        "name": "Kleur gain blauw"
+      },
+      "color_gain_luma": {
+        "name": "Kleur gain luma"
+      },
+      "color_offset_red": {
+        "name": "Kleur offset rood"
+      },
+      "color_offset_green": {
+        "name": "Kleur offset groen"
+      },
+      "color_offset_blue": {
+        "name": "Kleur offset blauw"
+      },
+      "color_offset_luma": {
+        "name": "Kleur offset luma"
+      },
+      "color_contrast_pivot": {
+        "name": "Kleur contrast-pivot"
+      },
+      "color_contrast": {
+        "name": "Kleur contrast"
+      },
+      "color_hue": {
+        "name": "Kleur tint (hue)"
+      },
+      "color_saturation": {
+        "name": "Kleur verzadiging"
+      },
+      "color_luma_contribution": {
+        "name": "Kleur luma-bijdrage"
+      }
+    },
+    "select": {
+      "tally": {
+        "name": "Tally",
+        "state": {
+          "none": "Uit",
+          "preview": "Preview",
+          "program": "Program"
+        }
+      },
+      "iso": {
+        "name": "ISO"
+      },
+      "gain": {
+        "name": "Gain"
+      },
+      "shutter": {
+        "name": "Sluiter"
+      },
+      "nd_filter": {
+        "name": "ND-filter"
+      },
+      "auto_exposure": {
+        "name": "Automatische belichting",
+        "state": {
+          "off": "Uit",
+          "continuous": "Continu",
+          "one_shot": "Eenmalig"
+        }
+      },
+      "preset": {
+        "name": "Preset"
+      },
+      "shutter_measurement": {
+        "name": "Sluitermeting",
+        "state": {
+          "shutter_angle": "Sluiterhoek",
+          "shutter_speed": "Sluitertijd"
+        }
+      },
+      "detail_sharpening_level": {
+        "name": "Detail sharpening niveau",
+        "state": {
+          "low": "Laag",
+          "medium": "Middel",
+          "high": "Hoog"
+        }
+      },
+      "dynamic_range": {
+        "name": "Dynamisch bereik",
+        "state": {
+          "video": "Video",
+          "film": "Film",
+          "extended_video": "Extended video",
+          "pq": "PQ",
+          "hlg": "HLG",
+          "da_vinci": "DaVinci"
+        }
+      },
+      "active_media": {
+        "name": "Actieve media"
+      },
+      "prerecord_duration": {
+        "name": "Prerecord duur"
+      },
+      "lens_autofocus_mode": {
+        "name": "Lens autofocus modus",
+        "state": {
+          "one_shot": "Eenmalig",
+          "continuous": "Continu",
+          "track_object": "Object volgen",
+          "track_face": "Gezicht volgen"
+        }
+      },
+      "focus_assist_mode": {
+        "name": "Focus assist modus",
+        "state": {
+          "peak": "Peak",
+          "colored_lines": "Gekleurde lijnen"
+        }
+      },
+      "focus_assist_color": {
+        "name": "Focus assist kleur",
+        "state": {
+          "red": "Rood",
+          "green": "Groen",
+          "blue": "Blauw",
+          "white": "Wit",
+          "black": "Zwart"
+        }
+      },
+      "frame_guide_ratio": {
+        "name": "Frame guide verhouding"
+      },
+      "audio_input": {
+        "name": "Audio {channel} ingang"
+      }
+    },
+    "sensor": {
+      "remaining_record_time": {
+        "name": "Resterende opnametijd"
+      },
+      "battery": {
+        "name": "Accu"
+      },
+      "voltage": {
+        "name": "Spanning"
+      },
+      "power_source": {
+        "name": "Voeding",
+        "state": {
+          "battery": "Accu",
+          "ac": "Netstroom",
+          "fiber": "Fiber",
+          "usb": "USB",
+          "poe": "PoE"
+        }
+      },
+      "lens_aperture": {
+        "name": "Lens diafragmawaarde"
+      },
+      "lens_focal_length": {
+        "name": "Lens brandpuntsafstand"
+      },
+      "lens_autofocus_state": {
+        "name": "Lens autofocus status",
+        "state": {
+          "idle": "Inactief",
+          "focusing": "Bezig met focussen",
+          "focused": "Scherp",
+          "paused": "Gepauzeerd",
+          "error": "Fout"
+        }
+      },
+      "video_format": {
+        "name": "Videoformaat"
+      },
+      "codec": {
+        "name": "Codec"
+      },
+      "frame_rate": {
+        "name": "Framerate"
+      },
+      "recording_resolution": {
+        "name": "Opnameresolutie"
+      },
+      "transport_mode": {
+        "name": "Transportmodus",
+        "state": {
+          "input_preview": "Preview",
+          "input_record": "Opnemen",
+          "output": "Afspelen"
+        }
+      },
+      "stream_status": {
+        "name": "Streamstatus",
+        "state": {
+          "idle": "Inactief",
+          "connecting": "Verbinden",
+          "streaming": "Streamen",
+          "flushing": "Afronden",
+          "interrupted": "Onderbroken"
+        }
+      },
+      "stream_bitrate": {
+        "name": "Stream bitrate"
+      },
+      "stream_duration": {
+        "name": "Streamduur"
+      },
+      "stream_cache": {
+        "name": "Stream cache"
+      },
+      "stream_platform": {
+        "name": "Streamplatform"
+      },
+      "media_slot": {
+        "name": "Mediaslot {slot}"
+      }
+    },
+    "switch": {
+      "record": {
+        "name": "Opnemen"
+      },
+      "stream": {
+        "name": "Stream"
+      },
+      "color_bars": {
+        "name": "Kleurenbalken"
+      },
+      "program_feed_display": {
+        "name": "Program feed weergave"
+      },
+      "detail_sharpening": {
+        "name": "Detail sharpening"
+      },
+      "lens_image_stabilization": {
+        "name": "Lens beeldstabilisatie"
+      },
+      "lens_autofocus_enabled": {
+        "name": "Lens autofocus actief"
+      },
+      "proxy_recording": {
+        "name": "Proxy-opname"
+      },
+      "auto_prerecord": {
+        "name": "Automatische prerecord"
+      },
+      "monitor_display_lut": {
+        "name": "Monitor {display} display-LUT"
+      },
+      "monitor_zebra": {
+        "name": "Monitor {display} zebra"
+      },
+      "monitor_focus_assist": {
+        "name": "Monitor {display} focus assist"
+      },
+      "monitor_false_color": {
+        "name": "Monitor {display} false color"
+      },
+      "monitor_clean_feed": {
+        "name": "Monitor {display} clean feed"
+      },
+      "monitor_frame_guide": {
+        "name": "Monitor {display} frame guide"
+      },
+      "monitor_frame_grids": {
+        "name": "Monitor {display} rasterlijnen"
+      },
+      "monitor_safe_area": {
+        "name": "Monitor {display} safe area"
+      },
+      "audio_phantom_power": {
+        "name": "Audio {channel} fantoomvoeding"
+      },
+      "audio_padding": {
+        "name": "Audio {channel} pad"
+      },
+      "audio_low_cut": {
+        "name": "Audio {channel} low-cut filter"
+      }
+    }
+  },
+  "exceptions": {
+    "command_failed": {
+      "message": "De camera weigerde de wijziging van {path}: {error}"
+    },
+    "cannot_connect": {
+      "message": "De camera op {host} is niet bereikbaar."
+    },
+    "invalid_auth": {
+      "message": "De camera weigert de gebruikersnaam of het wachtwoord. Configureer de integratie opnieuw."
+    },
+    "invalid_option": {
+      "message": "{option} is geen geldige optie."
+    }
+  }
+}

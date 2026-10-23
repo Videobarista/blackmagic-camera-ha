@@ -1,0 +1,5 @@
+{
+  "name": "Blackmagic Camera",
+  "render_readme": true,
+  "homeassistant": "2025.7.0"
+}

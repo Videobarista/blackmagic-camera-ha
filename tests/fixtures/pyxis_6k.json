@@ -1,0 +1,1535 @@
+{
+ "/audio/channel/0/available": {
+  "json": {
+   "available": true
+  },
+  "status": 200
+ },
+ "/audio/channel/0/input": {
+  "json": {
+   "input": "XLR1 - Mic"
+  },
+  "status": 200
+ },
+ "/audio/channel/0/input/description": {
+  "json": {
+   "description": {
+    "capabilities": [
+     {
+      "LowCutFilter": false,
+      "Padding": {
+       "available": true,
+       "forced": false,
+       "value": -20.0
+      },
+      "PhantomPower": true
+     }
+    ],
+    "gainRange": {
+     "Max": 60.0,
+     "Min": 0.0
+    }
+   }
+  },
+  "status": 200
+ },
+ "/audio/channel/0/level": {
+  "json": {
+   "gain": 9.079999923706055,
+   "normalised": 0.15133333206176758
+  },
+  "status": 200
+ },
+ "/audio/channel/0/lowCutFilter": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/audio/channel/0/padding": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/audio/channel/0/phantomPower": {
+  "json": {
+   "enabled": true
+  },
+  "status": 200
+ },
+ "/audio/channel/0/supportedInputs": {
+  "json": [
+   {
+    "available": true,
+    "input": "None"
+   },
+   {
+    "available": true,
+    "input": "Camera - Left"
+   },
+   {
+    "available": true,
+    "input": "Camera - Right"
+   },
+   {
+    "available": true,
+    "input": "Camera - Mono"
+   },
+   {
+    "available": true,
+    "input": "XLR1 - Mic"
+   },
+   {
+    "available": true,
+    "input": "XLR1 - Line"
+   },
+   {
+    "available": true,
+    "input": "3.5mm Left - Line"
+   },
+   {
+    "available": true,
+    "input": "3.5mm Right - Line"
+   },
+   {
+    "available": true,
+    "input": "3.5mm Mono - Line"
+   },
+   {
+    "available": false,
+    "input": "3.5mm Left - Mic"
+   },
+   {
+    "available": false,
+    "input": "3.5mm Right - Mic"
+   },
+   {
+    "available": false,
+    "input": "3.5mm Mono - Mic"
+   },
+   {
+    "available": true,
+    "input": "USB - Left"
+   },
+   {
+    "available": true,
+    "input": "USB - Right"
+   }
+  ],
+  "status": 200
+ },
+ "/audio/channel/1/available": {
+  "json": {
+   "available": true
+  },
+  "status": 200
+ },
+ "/audio/channel/1/input": {
+  "json": {
+   "input": "3.5mm Left - Line"
+  },
+  "status": 200
+ },
+ "/audio/channel/1/input/description": {
+  "json": {
+   "description": {
+    "capabilities": [
+     {
+      "LowCutFilter": false,
+      "Padding": {
+       "available": false,
+       "forced": false,
+       "value": 0.0
+      },
+      "PhantomPower": false
+     }
+    ],
+    "gainRange": {
+     "Max": 0.0,
+     "Min": 0.0
+    }
+   }
+  },
+  "status": 200
+ },
+ "/audio/channel/1/level": {
+  "json": {
+   "gain": 0.0,
+   "normalised": 0.5
+  },
+  "status": 200
+ },
+ "/audio/channel/1/lowCutFilter": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/audio/channel/1/padding": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/audio/channel/1/phantomPower": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/audio/channel/1/supportedInputs": {
+  "json": [
+   {
+    "available": true,
+    "input": "None"
+   },
+   {
+    "available": true,
+    "input": "Camera - Left"
+   },
+   {
+    "available": true,
+    "input": "Camera - Right"
+   },
+   {
+    "available": true,
+    "input": "Camera - Mono"
+   },
+   {
+    "available": true,
+    "input": "XLR1 - Mic"
+   },
+   {
+    "available": false,
+    "input": "XLR1 - Line"
+   },
+   {
+    "available": true,
+    "input": "3.5mm Left - Line"
+   },
+   {
+    "available": true,
+    "input": "3.5mm Right - Line"
+   },
+   {
+    "available": true,
+    "input": "3.5mm Mono - Line"
+   },
+   {
+    "available": true,
+    "input": "3.5mm Left - Mic"
+   },
+   {
+    "available": true,
+    "input": "3.5mm Right - Mic"
+   },
+   {
+    "available": true,
+    "input": "3.5mm Mono - Mic"
+   },
+   {
+    "available": true,
+    "input": "USB - Left"
+   },
+   {
+    "available": true,
+    "input": "USB - Right"
+   }
+  ],
+  "status": 200
+ },
+ "/audio/channel/2/available": {
+  "json": {
+   "available": true
+  },
+  "status": 200
+ },
+ "/audio/channel/2/input": {
+  "json": {
+   "input": "Camera - Left"
+  },
+  "status": 200
+ },
+ "/audio/channel/2/input/description": {
+  "json": {
+   "description": {
+    "capabilities": [
+     {
+      "LowCutFilter": false,
+      "Padding": {
+       "available": false,
+       "forced": false,
+       "value": 0.0
+      },
+      "PhantomPower": false
+     }
+    ],
+    "gainRange": {
+     "Max": 6.0,
+     "Min": -6.0
+    }
+   }
+  },
+  "status": 200
+ },
+ "/audio/channel/2/level": {
+  "json": {
+   "gain": 0.0,
+   "normalised": 0.5
+  },
+  "status": 200
+ },
+ "/audio/channel/2/lowCutFilter": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/audio/channel/2/padding": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/audio/channel/2/phantomPower": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/audio/channel/2/supportedInputs": {
+  "json": [
+   {
+    "available": true,
+    "input": "None"
+   },
+   {
+    "available": true,
+    "input": "Camera - Left"
+   },
+   {
+    "available": true,
+    "input": "Camera - Right"
+   },
+   {
+    "available": true,
+    "input": "Camera - Mono"
+   },
+   {
+    "available": true,
+    "input": "XLR1 - Mic"
+   },
+   {
+    "available": false,
+    "input": "XLR1 - Line"
+   },
+   {
+    "available": true,
+    "input": "3.5mm Left - Line"
+   },
+   {
+    "available": true,
+    "input": "3.5mm Right - Line"
+   },
+   {
+    "available": true,
+    "input": "3.5mm Mono - Line"
+   },
+   {
+    "available": false,
+    "input": "3.5mm Left - Mic"
+   },
+   {
+    "available": false,
+    "input": "3.5mm Right - Mic"
+   },
+   {
+    "available": false,
+    "input": "3.5mm Mono - Mic"
+   },
+   {
+    "available": true,
+    "input": "USB - Left"
+   },
+   {
+    "available": true,
+    "input": "USB - Right"
+   }
+  ],
+  "status": 200
+ },
+ "/audio/channel/3/available": {
+  "json": {
+   "available": true
+  },
+  "status": 200
+ },
+ "/audio/channel/3/input": {
+  "json": {
+   "input": "Camera - Right"
+  },
+  "status": 200
+ },
+ "/audio/channel/3/input/description": {
+  "json": {
+   "description": {
+    "capabilities": [
+     {
+      "LowCutFilter": false,
+      "Padding": {
+       "available": false,
+       "forced": false,
+       "value": 0.0
+      },
+      "PhantomPower": false
+     }
+    ],
+    "gainRange": {
+     "Max": 6.0,
+     "Min": -6.0
+    }
+   }
+  },
+  "status": 200
+ },
+ "/audio/channel/3/level": {
+  "json": {
+   "gain": 0.0,
+   "normalised": 0.5
+  },
+  "status": 200
+ },
+ "/audio/channel/3/lowCutFilter": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/audio/channel/3/padding": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/audio/channel/3/phantomPower": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/audio/channel/3/supportedInputs": {
+  "json": [
+   {
+    "available": true,
+    "input": "None"
+   },
+   {
+    "available": true,
+    "input": "Camera - Left"
+   },
+   {
+    "available": true,
+    "input": "Camera - Right"
+   },
+   {
+    "available": true,
+    "input": "Camera - Mono"
+   },
+   {
+    "available": true,
+    "input": "XLR1 - Mic"
+   },
+   {
+    "available": false,
+    "input": "XLR1 - Line"
+   },
+   {
+    "available": true,
+    "input": "3.5mm Left - Line"
+   },
+   {
+    "available": true,
+    "input": "3.5mm Right - Line"
+   },
+   {
+    "available": true,
+    "input": "3.5mm Mono - Line"
+   },
+   {
+    "available": false,
+    "input": "3.5mm Left - Mic"
+   },
+   {
+    "available": false,
+    "input": "3.5mm Right - Mic"
+   },
+   {
+    "available": false,
+    "input": "3.5mm Mono - Mic"
+   },
+   {
+    "available": true,
+    "input": "USB - Left"
+   },
+   {
+    "available": true,
+    "input": "USB - Right"
+   }
+  ],
+  "status": 200
+ },
+ "/audio/channels": {
+  "json": {
+   "channels": 4
+  },
+  "status": 200
+ },
+ "/camera/colorBars": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/camera/power": {
+  "json": {
+   "batteries": [
+    {
+     "chargeRemainingPercent": 100,
+     "milliVolt": 16300,
+     "statusFlags": [
+      "Battery Is Present",
+      "Battery Communications Is Active",
+      "Battery Is Connected"
+     ]
+    }
+   ],
+   "milliVolt": 11700,
+   "source": "AC"
+  },
+  "status": 200
+ },
+ "/camera/programFeedDisplay": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/camera/tallyStatus": {
+  "json": {
+   "status": "None"
+  },
+  "status": 200
+ },
+ "/camera/timingReferenceLock": {
+  "json": {
+   "locked": false
+  },
+  "status": 200
+ },
+ "/colorCorrection/color": {
+  "json": {
+   "hue": 0.0,
+   "saturation": 1.0
+  },
+  "status": 200
+ },
+ "/colorCorrection/contrast": {
+  "json": {
+   "adjust": 1.0,
+   "pivot": 0.5
+  },
+  "status": 200
+ },
+ "/colorCorrection/gain": {
+  "json": {
+   "blue": 1.0,
+   "green": 1.0,
+   "luma": 1.0,
+   "red": 1.0
+  },
+  "status": 200
+ },
+ "/colorCorrection/gamma": {
+  "json": {
+   "blue": 0.0,
+   "green": 0.0,
+   "luma": 0.0,
+   "red": 0.0
+  },
+  "status": 200
+ },
+ "/colorCorrection/lift": {
+  "json": {
+   "blue": 0.0,
+   "green": 0.0,
+   "luma": 0.0,
+   "red": 0.0
+  },
+  "status": 200
+ },
+ "/colorCorrection/lumaContribution": {
+  "json": {
+   "lumaContribution": 1.0
+  },
+  "status": 200
+ },
+ "/colorCorrection/offset": {
+  "json": {
+   "blue": 0.0,
+   "green": 0.0,
+   "luma": 0.0,
+   "red": 0.0
+  },
+  "status": 200
+ },
+ "/event/list": {
+  "json": [
+   "/access/status",
+   "/audio/channel/0/available",
+   "/audio/channel/0/input",
+   "/audio/channel/0/input/description",
+   "/audio/channel/0/level",
+   "/audio/channel/0/lowCutFilter",
+   "/audio/channel/0/padding",
+   "/audio/channel/0/phantomPower",
+   "/audio/channel/0/supportedInputs",
+   "/audio/channel/1/available",
+   "/audio/channel/1/input",
+   "/audio/channel/1/input/description",
+   "/audio/channel/1/level",
+   "/audio/channel/1/lowCutFilter",
+   "/audio/channel/1/padding",
+   "/audio/channel/1/phantomPower",
+   "/audio/channel/1/supportedInputs",
+   "/audio/channel/2/available",
+   "/audio/channel/2/input",
+   "/audio/channel/2/input/description",
+   "/audio/channel/2/level",
+   "/audio/channel/2/lowCutFilter",
+   "/audio/channel/2/padding",
+   "/audio/channel/2/phantomPower",
+   "/audio/channel/2/supportedInputs",
+   "/audio/channel/3/available",
+   "/audio/channel/3/input",
+   "/audio/channel/3/input/description",
+   "/audio/channel/3/level",
+   "/audio/channel/3/lowCutFilter",
+   "/audio/channel/3/padding",
+   "/audio/channel/3/phantomPower",
+   "/audio/channel/3/supportedInputs",
+   "/camera/colorBars",
+   "/camera/id",
+   "/camera/motionSensor/euler",
+   "/camera/motionSensor/horizon",
+   "/camera/power",
+   "/camera/power/displayMode",
+   "/camera/programFeedDisplay",
+   "/camera/tallyStatus",
+   "/camera/timingReferenceLock",
+   "/cloud/clips/activeUploading",
+   "/cloud/projects",
+   "/cloud/projects/active",
+   "/colorCorrection/color",
+   "/colorCorrection/contrast",
+   "/colorCorrection/gain",
+   "/colorCorrection/gamma",
+   "/colorCorrection/lift",
+   "/colorCorrection/lumaContribution",
+   "/colorCorrection/offset",
+   "/lens/focus",
+   "/lens/focus/autoFocus",
+   "/lens/focus/autoFocus/description",
+   "/lens/focus/autoFocus/detectedFaces",
+   "/lens/focus/autoFocus/target",
+   "/lens/focus/description",
+   "/lens/iris",
+   "/lens/iris/description",
+   "/lens/virtual",
+   "/lens/zoom",
+   "/lens/zoom/description",
+   "/livestreams/0",
+   "/livestreams/0/activePlatform",
+   "/livestreams/0/available",
+   "/livestreams/platforms",
+   "/media/active",
+   "/media/slots",
+   "/media/workingset",
+   "/monitoring/FrontUSBC/brightness",
+   "/monitoring/FrontUSBC/cleanFeed",
+   "/monitoring/FrontUSBC/displayLUT",
+   "/monitoring/FrontUSBC/falseColor",
+   "/monitoring/FrontUSBC/focusAssist",
+   "/monitoring/FrontUSBC/frameGrids",
+   "/monitoring/FrontUSBC/frameGuide",
+   "/monitoring/FrontUSBC/safeArea",
+   "/monitoring/FrontUSBC/zebra",
+   "/monitoring/LCD/brightness",
+   "/monitoring/LCD/cleanFeed",
+   "/monitoring/LCD/displayLUT",
+   "/monitoring/LCD/falseColor",
+   "/monitoring/LCD/focusAssist",
+   "/monitoring/LCD/frameGrids",
+   "/monitoring/LCD/frameGuide",
+   "/monitoring/LCD/safeArea",
+   "/monitoring/LCD/zebra",
+   "/monitoring/MainSDI/brightness",
+   "/monitoring/MainSDI/cleanFeed",
+   "/monitoring/MainSDI/displayLUT",
+   "/monitoring/MainSDI/falseColor",
+   "/monitoring/MainSDI/focusAssist",
+   "/monitoring/MainSDI/frameGrids",
+   "/monitoring/MainSDI/frameGuide",
+   "/monitoring/MainSDI/safeArea",
+   "/monitoring/MainSDI/zebra",
+   "/monitoring/focusAssist",
+   "/monitoring/frameGrids",
+   "/monitoring/frameGuideRatio",
+   "/monitoring/safeAreaPercent",
+   "/monitoring/zebra",
+   "/panel/devices",
+   "/presets",
+   "/presets/active",
+   "/slates/nextClip",
+   "/slates/nextClip/clip/clipName",
+   "/slates/nextClip/clip/goodTake",
+   "/slates/nextClip/clip/reel",
+   "/slates/nextClip/clip/scene",
+   "/slates/nextClip/clip/sceneLocation",
+   "/slates/nextClip/clip/sceneTime",
+   "/slates/nextClip/clip/shotType",
+   "/slates/nextClip/clip/slateFor",
+   "/slates/nextClip/clip/take",
+   "/slates/nextClip/clip/takeType",
+   "/slates/nextClip/lens/distance",
+   "/slates/nextClip/lens/filter",
+   "/slates/nextClip/lens/focalLength",
+   "/slates/nextClip/lens/iris",
+   "/slates/nextClip/lens/lensType",
+   "/slates/nextClip/project/camera",
+   "/slates/nextClip/project/cameraOperator",
+   "/slates/nextClip/project/director",
+   "/slates/nextClip/project/projectName",
+   "/slates/takeAutoIncrement",
+   "/system",
+   "/system/dynamicRange",
+   "/system/format",
+   "/system/product",
+   "/system/supportedDynamicRanges",
+   "/timelines/0",
+   "/timelines/0/selection",
+   "/transports/0",
+   "/transports/0/clipIndex",
+   "/transports/0/clipsCreated",
+   "/transports/0/play",
+   "/transports/0/playback",
+   "/transports/0/prerecord",
+   "/transports/0/prerecord/auto",
+   "/transports/0/prerecord/maxDuration",
+   "/transports/0/proxyRecording",
+   "/transports/0/record",
+   "/transports/0/stillCaptured",
+   "/transports/0/stop",
+   "/transports/0/timecode",
+   "/transports/0/timecode/source",
+   "/video/autoExposure",
+   "/video/detailSharpening",
+   "/video/flickerFreeShutters",
+   "/video/gain",
+   "/video/iso",
+   "/video/shutter",
+   "/video/shutter/measurement",
+   "/video/supportedGains",
+   "/video/supportedISOs",
+   "/video/supportedShutters",
+   "/video/whiteBalance",
+   "/video/whiteBalance/description",
+   "/video/whiteBalanceTint",
+   "/video/whiteBalanceTint/description"
+  ],
+  "status": 200
+ },
+ "/lens/focus": {
+  "json": {
+   "focusDistance": {
+    "far": 370,
+    "near": 370
+   },
+   "normalised": 0.0
+  },
+  "status": 200
+ },
+ "/lens/focus/autoFocus": {
+  "json": {
+   "enabled": true,
+   "errors": [],
+   "mode": "OneShot",
+   "state": "Idle",
+   "supported": true
+  },
+  "status": 200
+ },
+ "/lens/focus/autoFocus/description": {
+  "json": {
+   "supported": true,
+   "supportedModes": [
+    "OneShot",
+    "Continuous",
+    "TrackObject",
+    "TrackFace"
+   ]
+  },
+  "status": 200
+ },
+ "/lens/focus/description": {
+  "json": {
+   "controllable": true,
+   "focusDistance": {
+    "adjustable": false
+   }
+  },
+  "status": 200
+ },
+ "/lens/iris": {
+  "json": {
+   "apertureNumber": 256,
+   "apertureStop": 2.799999952316284,
+   "continuousApertureAutoExposure": false,
+   "normalised": 0.0
+  },
+  "status": 200
+ },
+ "/lens/iris/description": {
+  "json": {
+   "apertureStop": {
+    "max": 22.0,
+    "min": 2.799999952316284
+   },
+   "controllable": true
+  },
+  "status": 200
+ },
+ "/lens/opticalImageStabilization": {
+  "json": {
+   "controlAvailable": true,
+   "enabled": true
+  },
+  "status": 200
+ },
+ "/lens/zoom": {
+  "json": {
+   "focalLength": 24
+  },
+  "status": 200
+ },
+ "/lens/zoom/description": {
+  "json": {
+   "controllable": false,
+   "focalLength": {
+    "adjustable": false,
+    "max": 70.0,
+    "min": 24.0
+   }
+  },
+  "status": 200
+ },
+ "/livestreams/0": {
+  "json": {
+   "bitrate": 0,
+   "cache": 0.0,
+   "effectiveVideoFormat": "1920x1080p25",
+   "status": "Idle"
+  },
+  "status": 200
+ },
+ "/livestreams/0/activePlatform": {
+  "json": {
+   "key": "abcd-secret-key",
+   "platform": "YouTube",
+   "quality": "Streaming High",
+   "server": "Primary"
+  },
+  "status": 200
+ },
+ "/livestreams/0/available": {
+  "json": {
+   "available": true,
+   "reasons": []
+  },
+  "status": 200
+ },
+ "/media/active": {
+  "json": {
+   "deviceName": "nvme1",
+   "workingsetIndex": 0
+  },
+  "status": 200
+ },
+ "/media/slots": {
+  "json": [
+   {
+    "index": 0,
+    "type": "CFX"
+   },
+   {
+    "index": 1,
+    "type": "CFX"
+   },
+   {
+    "index": 2,
+    "type": "USB"
+   }
+  ],
+  "status": 200
+ },
+ "/media/workingset": {
+  "json": {
+   "size": 3,
+   "workingset": [
+    {
+     "activeDisk": true,
+     "clipCount": 0,
+     "deviceName": "nvme1",
+     "index": 0,
+     "remainingRecordTime": 2579,
+     "remainingSpace": 253999579136,
+     "totalSpace": 256056320000,
+     "volume": "A006"
+    },
+    {
+     "activeDisk": false,
+     "clipCount": 0,
+     "deviceName": "nvme2",
+     "index": 1,
+     "remainingRecordTime": 1275,
+     "remainingSpace": 126064631808,
+     "totalSpace": 128031481856,
+     "volume": "A005"
+    },
+    {
+     "activeDisk": false,
+     "clipCount": 0,
+     "deviceName": "usb512",
+     "index": 2,
+     "remainingRecordTime": 5066,
+     "remainingSpace": 497909964800,
+     "totalSpace": 500103667712,
+     "volume": "USB-DISK"
+    }
+   ]
+  },
+  "status": 200
+ },
+ "/monitoring/FrontUSBC/brightness": {
+  "json": {
+   "adjustable": false,
+   "brightness": 100
+  },
+  "status": 200
+ },
+ "/monitoring/FrontUSBC/cleanFeed": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/FrontUSBC/displayLUT": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/FrontUSBC/falseColor": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/FrontUSBC/focusAssist": {
+  "json": {
+   "enabled": true
+  },
+  "status": 200
+ },
+ "/monitoring/FrontUSBC/frameGrids": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/FrontUSBC/frameGuide": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/FrontUSBC/safeArea": {
+  "json": {
+   "enabled": true
+  },
+  "status": 200
+ },
+ "/monitoring/FrontUSBC/zebra": {
+  "json": {
+   "enabled": true
+  },
+  "status": 200
+ },
+ "/monitoring/LCD/brightness": {
+  "json": {
+   "adjustable": false,
+   "brightness": 100
+  },
+  "status": 200
+ },
+ "/monitoring/LCD/cleanFeed": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/LCD/displayLUT": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/LCD/falseColor": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/LCD/focusAssist": {
+  "json": {
+   "enabled": true
+  },
+  "status": 200
+ },
+ "/monitoring/LCD/frameGrids": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/LCD/frameGuide": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/LCD/safeArea": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/LCD/zebra": {
+  "json": {
+   "enabled": true
+  },
+  "status": 200
+ },
+ "/monitoring/MainSDI/brightness": {
+  "json": {
+   "adjustable": true,
+   "brightness": 0
+  },
+  "status": 200
+ },
+ "/monitoring/MainSDI/cleanFeed": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/MainSDI/displayLUT": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/MainSDI/falseColor": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/MainSDI/focusAssist": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/MainSDI/frameGrids": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/MainSDI/frameGuide": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/MainSDI/safeArea": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/MainSDI/zebra": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/monitoring/Stream/brightness": {
+  "json": {
+   "error": "Display not found"
+  },
+  "status": 404
+ },
+ "/monitoring/Stream/cleanFeed": {
+  "json": {
+   "error": "Display not found"
+  },
+  "status": 404
+ },
+ "/monitoring/Stream/displayLUT": {
+  "json": {
+   "error": "Display not found"
+  },
+  "status": 404
+ },
+ "/monitoring/Stream/falseColor": {
+  "json": {
+   "error": "Display not found"
+  },
+  "status": 404
+ },
+ "/monitoring/Stream/focusAssist": {
+  "json": {
+   "error": "Display not found"
+  },
+  "status": 404
+ },
+ "/monitoring/Stream/frameGrids": {
+  "json": {
+   "error": "Display not found"
+  },
+  "status": 404
+ },
+ "/monitoring/Stream/frameGuide": {
+  "json": {
+   "error": "Display not found"
+  },
+  "status": 404
+ },
+ "/monitoring/Stream/safeArea": {
+  "json": {
+   "error": "Display not found"
+  },
+  "status": 404
+ },
+ "/monitoring/Stream/zebra": {
+  "json": {
+   "error": "Display not found"
+  },
+  "status": 404
+ },
+ "/monitoring/display": {
+  "json": {
+   "displays": [
+    "LCD",
+    "FrontUSBC",
+    "MainSDI",
+    "Stream"
+   ]
+  },
+  "status": 200
+ },
+ "/monitoring/focusAssist": {
+  "json": {
+   "color": "Red",
+   "intensity": 0,
+   "mode": "Peak"
+  },
+  "status": 200
+ },
+ "/monitoring/frameGuideRatio": {
+  "json": {
+   "ratio": "16:9"
+  },
+  "status": 200
+ },
+ "/monitoring/frameGuideRatio/presets": {
+  "json": {
+   "presets": [
+    "2.4:1",
+    "2.39:1",
+    "2.35:1",
+    "2:1",
+    "1.85:1",
+    "16:9",
+    "14:9",
+    "4:3",
+    "1:1",
+    "4:5",
+    "9:16"
+   ]
+  },
+  "status": 200
+ },
+ "/monitoring/safeAreaPercent": {
+  "json": {
+   "percent": 90
+  },
+  "status": 200
+ },
+ "/panel/devices": {
+  "json": [
+   {
+    "enabled": true,
+    "name": "f1",
+    "type": "button"
+   },
+   {
+    "enabled": true,
+    "name": "f2",
+    "type": "button"
+   },
+   {
+    "enabled": true,
+    "name": "f3",
+    "type": "button"
+   }
+  ],
+  "status": 200
+ },
+ "/presets": {
+  "json": {
+   "presets": [
+    "Basis.cset"
+   ]
+  },
+  "status": 200
+ },
+ "/presets/active": {
+  "json": {
+   "preset": "default"
+  },
+  "status": 200
+ },
+ "/system": {
+  "status": 204
+ },
+ "/system/codecFormat": {
+  "json": {
+   "error": "Not implemented for this device"
+  },
+  "status": 501
+ },
+ "/system/dynamicRange": {
+  "json": {
+   "dynamicRange": "Extended Video"
+  },
+  "status": 200
+ },
+ "/system/format": {
+  "json": {
+   "codec": "BRaw:Q3",
+   "frameRate": "25",
+   "maxOffSpeedFrameRate": 46,
+   "minOffSpeedFrameRate": 5,
+   "offSpeedEnabled": false,
+   "offSpeedFrameRate": 36,
+   "recordResolution": {
+    "height": 3408,
+    "width": 6048
+   },
+   "resolutionDescriptor": {
+    "aspectRatio": "16:9",
+    "description": "6K 16:9",
+    "group": "6K"
+   },
+   "sensorResolution": {
+    "height": 3408,
+    "width": 6048
+   }
+  },
+  "status": 200
+ },
+ "/system/product": {
+  "json": {
+   "deviceName": "PYXIS 6K",
+   "productName": "PYXIS 6K",
+   "softwareVersion": "10.2"
+  },
+  "status": 200
+ },
+ "/system/supportedDynamicRanges": {
+  "json": {
+   "supportedDynamicRanges": [
+    "Film",
+    "Extended Video",
+    "Video"
+   ]
+  },
+  "status": 200
+ },
+ "/system/videoFormat": {
+  "json": {
+   "error": "Not implemented for this device"
+  },
+  "status": 501
+ },
+ "/transports/0": {
+  "json": {
+   "mode": "InputPreview"
+  },
+  "status": 200
+ },
+ "/transports/0/prerecord": {
+  "json": {
+   "duration": 0,
+   "prerecording": false
+  },
+  "status": 200
+ },
+ "/transports/0/prerecord/auto": {
+  "json": {
+   "autoEnabled": false
+  },
+  "status": 200
+ },
+ "/transports/0/prerecord/maxDuration": {
+  "json": {
+   "maxDuration": 10
+  },
+  "status": 200
+ },
+ "/transports/0/prerecord/supportedMaxDurations": {
+  "json": [
+   5,
+   10,
+   20,
+   30,
+   60,
+   120,
+   300,
+   600
+  ],
+  "status": 200
+ },
+ "/transports/0/proxyRecording": {
+  "json": {
+   "enabled": false
+  },
+  "status": 200
+ },
+ "/transports/0/record": {
+  "json": {
+   "recording": false
+  },
+  "status": 200
+ },
+ "/transports/0/timecode": {
+  "json": {
+   "display": "15:56:51:20",
+   "timeline": "00:00:00:00"
+  },
+  "status": 200
+ },
+ "/video/autoExposure": {
+  "json": {
+   "mode": "Off",
+   "type": ""
+  },
+  "status": 200
+ },
+ "/video/detailSharpening": {
+  "json": {
+   "error": "Detail Sharpening is not supported on this device"
+  },
+  "status": 501
+ },
+ "/video/detailSharpeningLevel": {
+  "json": {
+   "error": "Detail Sharpening is not supported on this device"
+  },
+  "status": 501
+ },
+ "/video/gain": {
+  "json": {
+   "gain": 0
+  },
+  "status": 200
+ },
+ "/video/iso": {
+  "json": {
+   "iso": 400
+  },
+  "status": 200
+ },
+ "/video/ndFilter": {
+  "json": {
+   "error": "ND Filter is not supported on this device"
+  },
+  "status": 501
+ },
+ "/video/shutter": {
+  "json": {
+   "continuousShutterAutoExposure": false,
+   "shutterSpeed": 50
+  },
+  "status": 200
+ },
+ "/video/shutter/measurement": {
+  "json": {
+   "measurement": "ShutterSpeed"
+  },
+  "status": 200
+ },
+ "/video/supportedGains": {
+  "json": {
+   "supportedGains": [
+    -12,
+    -10,
+    -8,
+    -6,
+    -4,
+    -2,
+    0,
+    2,
+    4,
+    6,
+    8,
+    10,
+    12,
+    14,
+    16,
+    18,
+    20,
+    22,
+    24,
+    26,
+    28,
+    30,
+    32,
+    34,
+    36
+   ]
+  },
+  "status": 200
+ },
+ "/video/supportedISOs": {
+  "json": {
+   "supportedISOs": [
+    100,
+    125,
+    160,
+    200,
+    250,
+    320,
+    400,
+    500,
+    640,
+    800,
+    1000,
+    1250,
+    1600,
+    2000,
+    2500,
+    3200,
+    4000,
+    5000,
+    6400,
+    8000,
+    10000,
+    12800,
+    16000,
+    20000,
+    25600
+   ]
+  },
+  "status": 200
+ },
+ "/video/supportedNDFilters": {
+  "json": {
+   "error": "ND Filter is not supported on this device"
+  },
+  "status": 501
+ },
+ "/video/supportedShutters": {
+  "json": {
+   "shutterAngles": [
+    1125,
+    1500,
+    2250,
+    3000,
+    3750,
+    4500,
+    6000,
+    7200,
+    7500,
+    9000,
+    10800,
+    12000,
+    14400,
+    15000,
+    17280,
+    18000,
+    21600,
+    27000,
+    32400,
+    36000
+   ],
+   "shutterSpeeds": [
+    25,
+    30,
+    50,
+    60,
+    100,
+    125,
+    200,
+    250,
+    500,
+    1000,
+    2000
+   ]
+  },
+  "status": 200
+ },
+ "/video/whiteBalance": {
+  "json": {
+   "whiteBalance": 5600
+  },
+  "status": 200
+ },
+ "/video/whiteBalance/description": {
+  "json": {
+   "whiteBalance": {
+    "max": 10000,
+    "min": 2500
+   }
+  },
+  "status": 200
+ },
+ "/video/whiteBalanceTint": {
+  "json": {
+   "whiteBalanceTint": 10
+  },
+  "status": 200
+ },
+ "/video/whiteBalanceTint/description": {
+  "json": {
+   "whiteBalanceTint": {
+    "max": 50,
+    "min": -50
+   }
+  },
+  "status": 200
+ }
+}

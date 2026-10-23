@@ -1,0 +1,14 @@
+target-version = "py313"
+line-length = 100
+
+[lint]
+select = ["B", "E", "F", "I", "UP", "W"]
+
+[lint.isort]
+force-sort-within-sections = true
+known-first-party = ["homeassistant"]
+combine-as-imports = true
+split-on-trailing-comma = false
+
+[format]
+quote-style = "double"
