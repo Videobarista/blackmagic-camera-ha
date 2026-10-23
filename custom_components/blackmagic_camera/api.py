@@ -213,7 +213,8 @@ class BlackmagicCameraApi:
         raise WebsocketUnsupported(f"No notification websocket found on {self._host}")
 
     async def _ws_connect_path(self, path: str) -> aiohttp.ClientWebSocketResponse:
-        kwargs: dict[str, Any] = {"heartbeat": 30, "timeout": aiohttp.ClientWSTimeout(ws_close=10)}
+        # A 10 s heartbeat notices a camera that was switched off within ~15 s.
+        kwargs: dict[str, Any] = {"heartbeat": 10, "timeout": aiohttp.ClientWSTimeout(ws_close=10)}
         if self._send_basic and self._basic_auth is not None:
             kwargs["headers"] = {"Authorization": self._basic_auth}
         try:

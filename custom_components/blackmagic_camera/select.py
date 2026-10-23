@@ -242,7 +242,9 @@ def _preset_label(value: str) -> str:
 def _preset_options(entity: BlackmagicCameraEntity) -> OptionMap:
     presets = entity.prop_field("presets", P_PRESETS)
     files = [p for p in presets if isinstance(p, str)] if isinstance(presets, list) else []
-    options: OptionMap = {"Default": "default"}
+    # "default" is reported when no preset is active but cannot be selected
+    # (the camera answers 404 'Preset file "default" not found').
+    options: OptionMap = {}
     for name in files:
         file_name = name if name.endswith(".cset") else f"{name}.cset"
         options[_preset_label(file_name)] = file_name

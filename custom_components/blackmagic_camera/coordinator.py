@@ -409,11 +409,11 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 translation_domain=DOMAIN, translation_key="invalid_auth"
             ) from err
         except CannotConnect as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="cannot_connect",
-                translation_placeholders={"host": self.api.host},
-            ) from err
+            # Not an error: the camera was switched off or left the network.
+            # Mark it offline right away so its entities become unavailable.
+            _LOGGER.debug("Command %s %s not delivered: %s", method.upper(), path, err)
+            self._still_offline(err)
+            return
 
         to_refresh = list(refresh) if refresh is not None else [path]
         if to_refresh:

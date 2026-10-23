@@ -285,7 +285,7 @@ async def test_command_errors(
     mock_camera: Callable[..., None],
     aioclient_mock: AiohttpClientMocker,
 ) -> None:
-    """Rejected or failed commands raise a readable error."""
+    """Refused commands raise a readable error; an unreachable camera goes offline."""
     aioclient_mock.put(f"{BASE}/video/iso", status=403, json={"error": "ISO is locked"})
     aioclient_mock.put(f"{BASE}/camera/colorBars", exc=TimeoutError())
     aioclient_mock.put(f"{BASE}/camera/tallyStatus", status=401)
@@ -297,10 +297,26 @@ async def test_command_errors(
     with pytest.raises(HomeAssistantError, match="ISO is locked"):
         await _call(hass, SELECT_DOMAIN, SERVICE_SELECT_OPTION, "select.pyxis_6k_iso", option="800")
     with pytest.raises(HomeAssistantError):
-        await _call(hass, SWITCH_DOMAIN, SERVICE_TURN_ON, "switch.pyxis_6k_color_bars")
-    with pytest.raises(HomeAssistantError):
         await _call(
             hass, SELECT_DOMAIN, SERVICE_SELECT_OPTION, "select.pyxis_6k_tally", option="preview"
+        )
+
+    # A camera that does not answer is offline, not an error.
+    await _call(hass, SWITCH_DOMAIN, SERVICE_TURN_ON, "switch.pyxis_6k_color_bars")
+    await hass.async_block_till_done()
+    assert hass.states.get("binary_sensor.pyxis_6k_connection").state == "off"
+    assert hass.states.get("switch.pyxis_6k_color_bars").state == "unavailable"
+
+
+async def test_default_preset_not_selectable(
+    hass: HomeAssistant, setup_camera: MockConfigEntry
+) -> None:
+    """The camera reports "default" but refuses to select it."""
+    state = hass.states.get("select.pyxis_6k_preset")
+    assert state.state == "Default"
+    with pytest.raises(ServiceValidationError):
+        await _call(
+            hass, SELECT_DOMAIN, SERVICE_SELECT_OPTION, "select.pyxis_6k_preset", option="Default"
         )
 
 
