@@ -1,5 +1,6 @@
 # Blackmagic Camera for Home Assistant
 
+[![Release](https://img.shields.io/github/v/release/Videobarista/blackmagic-camera-ha?sort=semver)](https://github.com/Videobarista/blackmagic-camera-ha/releases)
 [![Ruff](https://github.com/Videobarista/blackmagic-camera-ha/actions/workflows/ruff.yml/badge.svg?branch=main)](https://github.com/Videobarista/blackmagic-camera-ha/actions/workflows/ruff.yml)
 [![Hassfest](https://github.com/Videobarista/blackmagic-camera-ha/actions/workflows/hassfest.yml/badge.svg?branch=main)](https://github.com/Videobarista/blackmagic-camera-ha/actions/workflows/hassfest.yml)
 [![HACS](https://github.com/Videobarista/blackmagic-camera-ha/actions/workflows/hacs.yml/badge.svg?branch=main)](https://github.com/Videobarista/blackmagic-camera-ha/actions/workflows/hacs.yml)
@@ -61,7 +62,10 @@ diagnostics file to an issue.
 
 1. The camera is on your network (Ethernet, or USB-C Ethernet adapter).
 2. In **Blackmagic Camera Setup → Network Access**, set **Web media manager**
-   to **Enabled**. The REST API is served by the web media manager.
+   to **Enabled**. The REST API is served by the web media manager; without it
+   the camera has no network control at all (older Blackmagic cameras without
+   this option can only be controlled over Bluetooth or SDI, which this
+   integration does not use).
    - With **Enabled with security only** the API runs over HTTPS with a
      username and password: turn on *Use HTTPS* and fill in the credentials
      when adding the camera.
@@ -181,7 +185,8 @@ The **Connection** sensor shows whether the camera answers; its
 | `offline_reason` | Meaning | What to do |
 | --- | --- | --- |
 | `unreachable` | No answer at all | Camera off, asleep or not on the network. Nothing to do: it is picked up automatically. |
-| `api_unavailable` | The camera answers, but the REST API returns 404 | In Blackmagic Camera Setup → Network Access set **Web media manager** to **Enabled**. With **Enabled with security only**, reconfigure the integration with **Use HTTPS** and the camera's username and password. A repair notice is shown in Home Assistant while this lasts. |
+| `api_unavailable` | The camera answers, but the REST API returns 404 | In Blackmagic Camera Setup → Network Access set **Web media manager** to **Enabled**. A repair notice is shown in Home Assistant while this lasts. |
+| `https_required` | The camera redirects to HTTPS (web media manager **Enabled with security only**) | Reconfigure the integration with **Use HTTPS** and the username and password from Secure login, or set **Web media manager** back to **Enabled**. A repair notice is shown while this lasts. |
 
 In both cases the integration keeps checking (every 10 s, backing off to 30 s)
 and recovers by itself, including the push connection.

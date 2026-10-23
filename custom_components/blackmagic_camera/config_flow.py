@@ -21,7 +21,7 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
-from .api import CannotConnect, InvalidAuth
+from .api import ApiError, CannotConnect, HttpsRequired, InvalidAuth
 from .const import (
     CONF_SCAN_INTERVAL,
     CONF_USE_HTTPS,
@@ -102,6 +102,12 @@ class BlackmagicCameraConfigFlow(ConfigFlow, domain=DOMAIN):
             errors["base"] = "invalid_auth"
         except CannotConnect:
             errors["base"] = "cannot_connect"
+        except HttpsRequired:
+            errors["base"] = "https_required"
+        except ApiError as err:
+            # 404: the camera answers but the REST API (web media manager) is off.
+            _LOGGER.debug("Camera %s answered: %s", data.get(CONF_HOST), err)
+            errors["base"] = "api_unavailable" if err.status == 404 else "unknown"
         except Exception:
             _LOGGER.exception("Unexpected error connecting to %s", data.get(CONF_HOST))
             errors["base"] = "unknown"

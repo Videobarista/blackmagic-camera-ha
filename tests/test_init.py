@@ -19,7 +19,7 @@ from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er, issue_registry as ir
 
-from .conftest import BASE
+from .conftest import BASE, HOST
 
 
 async def _setup(hass: HomeAssistant, entry: MockConfigEntry) -> None:
@@ -250,6 +250,27 @@ async def test_rest_api_switched_off(
     assert hass.states.get("binary_sensor.pyxis_6k_connection").state == STATE_ON
     assert hass.states.get("select.pyxis_6k_iso").state == "400"
     assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
+async def test_camera_redirects_to_https(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    aioclient_mock: AiohttpClientMocker,
+) -> None:
+    """HTTP redirected to HTTPS means "security only": offline plus a repair."""
+    aioclient_mock.get(
+        f"{BASE}/system/product",
+        status=307,
+        headers={"Location": f"https://{HOST}/control/api/v1/system/product"},
+    )
+    await _setup(hass, config_entry)
+    assert config_entry.state is ConfigEntryState.LOADED
+    connection = hass.states.get("binary_sensor.pyxis_6k_connection")
+    assert connection.state == STATE_OFF
+    assert connection.attributes["offline_reason"] == "https_required"
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, f"https_required_{config_entry.entry_id}")
+    assert issue is not None
+    assert issue.translation_key == "https_required"
 
 
 async def test_many_missing_values_but_camera_online(

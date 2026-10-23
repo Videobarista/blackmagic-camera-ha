@@ -37,6 +37,10 @@ class InvalidAuth(BlackmagicCameraError):
     """The camera rejected the credentials."""
 
 
+class HttpsRequired(BlackmagicCameraError):
+    """The camera redirects plain HTTP to HTTPS ("Enabled with security only")."""
+
+
 class WebsocketUnsupported(BlackmagicCameraError):
     """The camera does not offer the notification websocket."""
 
@@ -112,7 +116,11 @@ class BlackmagicCameraApi:
         allow_basic_retry: bool = True,
     ) -> tuple[int, Any]:
         """Perform a request and return (status, decoded body)."""
-        kwargs: dict[str, Any] = {"timeout": aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)}
+        kwargs: dict[str, Any] = {
+            "timeout": aiohttp.ClientTimeout(total=REQUEST_TIMEOUT),
+            # A redirect means HTTPS only or a login page, never the API.
+            "allow_redirects": False,
+        }
         if payload is not None:
             kwargs["json"] = payload
         if self._send_basic and self._basic_auth is not None:
@@ -121,6 +129,11 @@ class BlackmagicCameraApi:
         try:
             async with self._session.request(method, self._url(path), **kwargs) as resp:
                 status = resp.status
+                if HTTPStatus.MULTIPLE_CHOICES <= status < HTTPStatus.BAD_REQUEST:
+                    location = resp.headers.get("Location", "")
+                    if location.lower().startswith("https:") and not self._use_https:
+                        raise HttpsRequired(f"{self._host} only accepts HTTPS ({location})")
+                    raise ApiError(status, method, path, f"redirected to {location}")
                 if status == HTTPStatus.UNAUTHORIZED:
                     challenge = resp.headers.get("WWW-Authenticate", "")
                     if (

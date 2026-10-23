@@ -23,6 +23,7 @@ from .api import (
     BlackmagicCameraApi,
     BlackmagicCameraError,
     CannotConnect,
+    HttpsRequired,
     InvalidAuth,
     WebsocketUnsupported,
     gather_limited,
@@ -59,6 +60,9 @@ _WS_UNSUPPORTED_RETRY = 600
 
 REASON_UNREACHABLE = "unreachable"
 REASON_API_UNAVAILABLE = "api_unavailable"
+REASON_HTTPS_REQUIRED = "https_required"
+# Reasons the user can fix in the camera settings get a repair issue.
+_ISSUE_REASONS = frozenset({REASON_API_UNAVAILABLE, REASON_HTTPS_REQUIRED})
 # Answers meaning "this firmware does not know that call".
 _NOT_FOUND_STATUS = frozenset({404, 405, 501})
 
@@ -114,7 +118,7 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._backoff: float | None = None
         self._online_event = asyncio.Event()
         self._ws_wakeup = asyncio.Event()
-        self._issue_id = f"api_unavailable_{entry.entry_id}"
+
         self._pending_push: dict[str, Any] = {}
         self._push_unsub: CALLBACK_TYPE | None = None
         self._ws: aiohttp.ClientWebSocketResponse | None = None
@@ -162,59 +166,69 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.online = True
             self._poll_count = 0  # start with a full poll
             self._ws_wakeup.set()
-        if self.offline_reason == REASON_API_UNAVAILABLE:
-            ir.async_delete_issue(self.hass, DOMAIN, self._issue_id)
+        self._delete_issue(self.offline_reason)
         self.offline_reason = None
         self._backoff = None
         self.update_interval = self.scan_interval
         self._online_event.set()
+
+    def _issue_id(self, reason: str) -> str:
+        return f"{reason}_{self.config_entry.entry_id}"
+
+    @callback
+    def _delete_issue(self, reason: str | None) -> None:
+        if reason in _ISSUE_REASONS:
+            ir.async_delete_issue(self.hass, DOMAIN, self._issue_id(reason))
 
     @callback
     def _set_offline(self, err: BlackmagicCameraError) -> None:
         """Mark the camera offline and back off the next check.
 
         A camera that answers HTTP but returns 404 for the REST API has the
-        API switched off (web media manager disabled, or set to HTTPS only);
-        that gets a hint in the log and a repair issue. A camera that does not
-        answer at all is simply switched off.
+        API switched off (web media manager disabled); one that redirects to
+        HTTPS is set to "Enabled with security only". Both get a hint in the
+        log and a repair issue. A camera that does not answer at all is
+        simply switched off.
         """
-        reason = (
-            REASON_API_UNAVAILABLE
-            if isinstance(err, ApiError) and err.status == 404
-            else REASON_UNREACHABLE
-        )
+        if isinstance(err, HttpsRequired):
+            reason = REASON_HTTPS_REQUIRED
+        elif isinstance(err, ApiError) and err.status == 404:
+            reason = REASON_API_UNAVAILABLE
+        else:
+            reason = REASON_UNREACHABLE
         if reason != self.offline_reason:
+            self._delete_issue(self.offline_reason)
             if reason == REASON_API_UNAVAILABLE:
-                _LOGGER.info(
-                    "Camera %s answers, but its REST API is not available (HTTP 404). Is "
-                    "'Web media manager' enabled in Blackmagic Camera Setup? With 'Enabled "
-                    "with security only' turn on HTTPS in the integration. Checking every %s s "
-                    "with back-off up to %s s",
-                    self.api.host,
-                    int(self.scan_interval.total_seconds()),
-                    OFFLINE_RETRY_MAX,
+                hint = (
+                    "answers, but its REST API is not available (HTTP 404). Enable 'Web media "
+                    "manager' in Blackmagic Camera Setup"
                 )
+            elif reason == REASON_HTTPS_REQUIRED:
+                hint = (
+                    "only accepts HTTPS (web media manager 'Enabled with security only'). "
+                    "Reconfigure the integration with HTTPS and the camera's credentials"
+                )
+            else:
+                hint = f"is offline ({err})"
+            _LOGGER.info(
+                "Camera %s %s; checking every %s s with back-off up to %s s",
+                self.api.host,
+                hint,
+                int(self.scan_interval.total_seconds()),
+                OFFLINE_RETRY_MAX,
+            )
+            if reason in _ISSUE_REASONS:
                 ir.async_create_issue(
                     self.hass,
                     DOMAIN,
-                    self._issue_id,
+                    self._issue_id(reason),
                     is_fixable=False,
                     severity=ir.IssueSeverity.WARNING,
-                    translation_key="api_unavailable",
+                    translation_key=reason,
                     translation_placeholders={
                         "name": self.config_entry.title,
                         "host": self.api.host,
                     },
-                )
-            else:
-                if self.offline_reason == REASON_API_UNAVAILABLE:
-                    ir.async_delete_issue(self.hass, DOMAIN, self._issue_id)
-                _LOGGER.info(
-                    "Camera %s is offline (%s); checking every %s s with back-off up to %s s",
-                    self.api.host,
-                    err,
-                    int(self.scan_interval.total_seconds()),
-                    OFFLINE_RETRY_MAX,
                 )
         self.offline_reason = reason
         self.online = False

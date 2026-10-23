@@ -93,7 +93,16 @@ async def test_title_falls_back_to_host(
         ({"exc": aiohttp.ClientConnectionError()}, "cannot_connect"),
         ({"exc": TimeoutError()}, "cannot_connect"),
         ({"status": 401}, "invalid_auth"),
-        ({"status": 404}, "unknown"),
+        ({"status": 404, "text": "<h1>Not Found</h1>"}, "api_unavailable"),
+        ({"status": 500}, "unknown"),
+        (
+            {
+                "status": 307,
+                "headers": {"Location": f"https://{HOST}/control/api/v1/system/product"},
+            },
+            "https_required",
+        ),
+        ({"status": 302, "headers": {"Location": f"http://{HOST}/login"}}, "unknown"),
         ({"json": ["not", "a", "dict"]}, "unknown"),
     ],
 )

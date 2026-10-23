@@ -41,7 +41,9 @@
     "error": {
       "cannot_connect": "Kan geen verbinding maken. Controleer het adres en of web media manager aan staat.",
       "invalid_auth": "Ongeldige gebruikersnaam of wachtwoord.",
-      "unknown": "Onverwachte fout, zie het logboek."
+      "unknown": "Onverwachte fout, zie het logboek.",
+      "api_unavailable": "De camera antwoordt, maar de REST API staat uit. Zet in Blackmagic Camera Setup → Network Access 'Web media manager' op 'Enabled'.",
+      "https_required": "De camera accepteert alleen HTTPS (web media manager 'Enabled with security only'). Zet 'HTTPS gebruiken' aan en vul de gebruikersnaam en het wachtwoord van de camera in."
     },
     "abort": {
       "already_configured": "Deze camera is al geconfigureerd.",
@@ -448,6 +450,10 @@
     }
   },
   "issues": {
+    "https_required": {
+      "title": "{name}: camera accepteert alleen HTTPS",
+      "description": "De camera op {host} stuurt door naar HTTPS: web media manager staat op **Enabled with security only**. Home Assistant blijft controleren.\n\nConfigureer deze integratie opnieuw met **HTTPS gebruiken** en de gebruikersnaam en het wachtwoord van Secure login in Blackmagic Camera Setup, of zet **Web media manager** terug op **Enabled**."
+    },
     "api_unavailable": {
       "title": "{name}: REST API van de camera staat uit",
       "description": "De camera op {host} antwoordt, maar de REST API geeft 404. Home Assistant blijft controleren en herstelt automatisch zodra de API terug is.\n\nZet in Blackmagic Camera Setup → Network Access **Web media manager** op **Enabled**. Koos je **Enabled with security only**, configureer deze integratie dan opnieuw met **HTTPS gebruiken** en de gebruikersnaam en het wachtwoord van de camera."
