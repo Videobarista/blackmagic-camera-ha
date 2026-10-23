@@ -31,7 +31,8 @@ media status, switch monitoring overlays, audio inputs, tally and more.
 - **Works with a camera that is switched off**: offline is treated as a
   state, not an error. Home Assistant starts normally, the entities are
   unavailable and the *Connection* sensor shows the camera as disconnected.
-  A single small request checks for its return every 10 s, backing off to
+  A camera that is switched off is noticed within about 20 s. A single
+  small request checks for its return every 10 s, backing off to
   every 30 s; when it answers again everything is refreshed and push updates
   resume. Going offline and coming back are logged as information only.
 - **Light on Home Assistant**: pushed changes only update the entities that
@@ -143,7 +144,8 @@ pad / low cut filter.
 
 Disabled by default: Capture still (records a still frame to the active
 media; PYXIS firmware 10.2 answers this API call with an error while the
-camera's own still button works), Focus assist mode / color / intensity, Program feed
+camera's own still button works; updating from an older version switches
+it off once), Focus assist mode / color / intensity, Program feed
 display, Frame guide ratio, Safe area size,
 Monitor {display} clean feed / frame guide / frame grids / safe area /
 brightness, all **Color …** correction values and **Color correction reset**.

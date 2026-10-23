@@ -296,7 +296,7 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         paths = self._paths_to_poll()
         if not paths:
             return dict(self.data or {})
-        results = await gather_limited(MAX_PARALLEL_REQUESTS, *(self.api.get(p) for p in paths))
+        results = await self._async_fetch(paths)
         old = self.data or {}
         data = dict(old)
         connection_errors = 0
@@ -341,6 +341,30 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if changed := {k for k in paths if old.get(k, ...) != data.get(k)}:
             self.changed_paths = frozenset(changed)
         return data
+
+    async def _async_fetch(self, paths: list[str]) -> list[Any]:
+        """Read properties; stop at the first connection error.
+
+        A camera that was switched off makes every request time out, so the
+        remaining reads are skipped (reported as the same connection error)
+        instead of waiting for all of them.
+        """
+        semaphore = asyncio.Semaphore(MAX_PARALLEL_REQUESTS)
+        failed: list[CannotConnect] = []
+
+        async def _read(path: str) -> Any:
+            async with semaphore:
+                if failed:
+                    return failed[0]
+                try:
+                    return await self.api.get(path)
+                except CannotConnect as err:
+                    failed.append(err)
+                    return err
+                except BlackmagicCameraError as err:
+                    return err
+
+        return await asyncio.gather(*(_read(path) for path in paths), return_exceptions=True)
 
     def _still_offline(self, err: BlackmagicCameraError) -> dict[str, Any]:
         """Handle an unanswered check: offline is a state, not an error."""
@@ -583,9 +607,22 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if not self._stopping:
                 # Find out right away whether the camera went offline.
                 self.config_entry.async_create_task(
-                    self.hass, self.async_request_refresh(), "blackmagic_camera refresh"
+                    self.hass, self._async_check_alive(), "blackmagic_camera alive check"
                 )
         self.async_update_listeners()
+
+    async def _async_check_alive(self) -> None:
+        """After the push connection dropped: one quick request decides."""
+        try:
+            await self.api.get(P_PRODUCT)
+        except (CannotConnect, ApiError, HttpsRequired) as err:
+            if self.online:
+                self._still_offline(err)
+            return
+        except InvalidAuth:
+            _LOGGER.debug("Camera %s rejected the credentials", self.api.host)
+        # Still there: poll what the websocket was covering.
+        await self.async_request_refresh()
 
     @callback
     def _queue_push(self, values: dict[str, Any]) -> None:

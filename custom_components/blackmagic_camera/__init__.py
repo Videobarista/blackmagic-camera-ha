@@ -7,13 +7,18 @@ This is an unofficial, community made integration.
 
 from __future__ import annotations
 
+import logging
+
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN, STORAGE_VERSION
 from .coordinator import BlackmagicCameraConfigEntry, BlackmagicCameraCoordinator
 from .helpers import async_create_api
+
+_LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
@@ -23,6 +28,31 @@ PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.SWITCH,
 ]
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: BlackmagicCameraConfigEntry) -> bool:
+    """Migrate config entries made by older versions."""
+    if entry.version > 1:
+        # Made by a newer version of this integration.
+        return False
+    if entry.minor_version < 2:
+        # Current firmware refuses still capture over the REST API, so the
+        # button is disabled by default since 1.0.6. That default only applies
+        # to new entities; switch existing ones off once (users can turn the
+        # button back on).
+        registry = er.async_get(hass)
+        entity_id = registry.async_get_entity_id(
+            Platform.BUTTON, DOMAIN, f"{entry.entry_id}_capture_still"
+        )
+        if entity_id is not None:
+            registry_entry = registry.async_get(entity_id)
+            if registry_entry is not None and registry_entry.disabled_by is None:
+                registry.async_update_entity(
+                    entity_id, disabled_by=er.RegistryEntryDisabler.INTEGRATION
+                )
+                _LOGGER.debug("Disabled %s (still capture is refused by the API)", entity_id)
+        hass.config_entries.async_update_entry(entry, minor_version=2)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: BlackmagicCameraConfigEntry) -> bool:

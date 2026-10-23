@@ -261,6 +261,55 @@ async def test_websocket_retried_when_camera_returns(
         assert await hass.config_entries.async_unload(entry.entry_id)
 
 
+async def test_websocket_drop_checks_camera_quickly(
+    hass: HomeAssistant, mock_camera: Callable[..., None], aioclient_mock: AiohttpClientMocker
+) -> None:
+    """A dropped push connection is followed by one quick request, not a full poll."""
+    mock_camera()
+    fake = FakeWebsocket(
+        [{"type": "response", "id": 1, "data": {"action": "subscribe", "success": True}}]
+    )
+    entry = MockConfigEntry(domain=DOMAIN, title="PYXIS 6K", data=dict(ENTRY_DATA))
+    entry.add_to_hass(hass)
+    with (
+        patch.object(BlackmagicCameraApi, "ws_connect", ws_sequence(fake)),
+        patch(WS_PATCHES[0], 3600),
+        patch(WS_PATCHES[1], 3600),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await settle(hass)
+        coordinator = entry.runtime_data
+        assert coordinator.websocket_connected
+
+        # The camera is switched off: the heartbeat closes the socket.
+        aioclient_mock.clear_requests()
+        offline = {"status": 0, "exc": aiohttp.ClientConnectionError()}
+        mock_camera(
+            {path: offline for path in [*coordinator.capabilities.supported, "/system/product"]}
+        )
+        fake.release.set()
+        await settle(hass)
+
+        assert not coordinator.online
+        assert coordinator.offline_reason == "unreachable"
+        assert hass.states.get("binary_sensor.pyxis_6k_connection").state == "off"
+        assert [str(url) for _m, url, _d, _h in aioclient_mock.mock_calls] == [
+            f"{BASE}/system/product"
+        ]
+        assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_api_timeout_message_names_the_error(aioclient_mock: AiohttpClientMocker) -> None:
+    """A timeout has no text of its own; the log names it anyway."""
+    aioclient_mock.get(f"{BASE}/system/product", exc=TimeoutError())
+    session = aiohttp.ClientSession()
+    object.__setattr__(session, "_request", aioclient_mock.match_request)
+    api = BlackmagicCameraApi(session, HOST)
+    with pytest.raises(CannotConnect, match="TimeoutError"):
+        await api.get("/system/product")
+    await session.close()
+
+
 async def test_diagnostics_redact_secrets(
     hass: HomeAssistant,
     config_entry: MockConfigEntry,

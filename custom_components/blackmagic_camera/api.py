@@ -155,7 +155,8 @@ class BlackmagicCameraApi:
                             body = text
                 return status, body
         except (TimeoutError, aiohttp.ClientError) as err:
-            raise CannotConnect(f"Error talking to {self._host}: {err}") from err
+            detail = str(err) or type(err).__name__
+            raise CannotConnect(f"Error talking to {self._host}: {detail}") from err
 
     async def _call(self, method: str, path: str, payload: Any = None) -> Any:
         status, body = await self._request(method, path, payload)
@@ -218,7 +219,8 @@ class BlackmagicCameraApi:
         if self._send_basic and self._basic_auth is not None:
             kwargs["headers"] = {"Authorization": self._basic_auth}
         try:
-            return await self._session.ws_connect(self._websocket_url(path), **kwargs)
+            async with asyncio.timeout(REQUEST_TIMEOUT):
+                return await self._session.ws_connect(self._websocket_url(path), **kwargs)
         except aiohttp.WSServerHandshakeError as err:
             if err.status == HTTPStatus.UNAUTHORIZED:
                 raise InvalidAuth("Websocket requires valid credentials") from err
@@ -231,7 +233,8 @@ class BlackmagicCameraApi:
                 raise WebsocketUnsupported(f"Websocket not offered: HTTP {err.status}") from err
             raise CannotConnect(f"Websocket handshake failed: {err}") from err
         except (TimeoutError, aiohttp.ClientError) as err:
-            raise CannotConnect(f"Websocket connection failed: {err}") from err
+            detail = str(err) or type(err).__name__
+            raise CannotConnect(f"Websocket connection failed: {detail}") from err
 
 
 async def gather_limited(limit: int, *coros: Any) -> list[Any]:

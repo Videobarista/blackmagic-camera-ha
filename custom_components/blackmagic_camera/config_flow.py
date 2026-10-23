@@ -91,6 +91,8 @@ class BlackmagicCameraConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Blackmagic cameras."""
 
     VERSION = 1
+    # 2: "Capture still" switched off once for entries made before 1.0.6.
+    MINOR_VERSION = 2
 
     async def _async_try_connect(
         self, data: dict[str, Any], errors: dict[str, str]

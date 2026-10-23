@@ -13,13 +13,17 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
-from custom_components.blackmagic_camera.const import DOMAIN
+from custom_components.blackmagic_camera.const import (
+    CONF_USE_WEBSOCKET,
+    DOMAIN,
+    MAX_PARALLEL_REQUESTS,
+)
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er, issue_registry as ir
 
-from .conftest import BASE, HOST
+from .conftest import BASE, ENTRY_DATA, HOST
 
 
 async def _setup(hass: HomeAssistant, entry: MockConfigEntry) -> None:
@@ -183,6 +187,9 @@ async def test_camera_goes_offline(
     assert hass.states.get("select.pyxis_6k_iso").state == STATE_UNAVAILABLE
     assert hass.states.get("binary_sensor.pyxis_6k_connection").state == STATE_OFF
     assert coordinator.update_interval == timedelta(seconds=10)
+    # The poll stops at the first unanswered request instead of waiting for
+    # every property to time out, then one request confirms.
+    assert len(aioclient_mock.mock_calls) <= MAX_PARALLEL_REQUESTS + 1
 
     # While offline only /system/product is asked, with a growing interval.
     aioclient_mock.mock_calls.clear()
@@ -303,6 +310,46 @@ async def test_invalid_auth_fails_setup(
     config_entry.add_to_hass(hass)
     assert not await hass.config_entries.async_setup(config_entry.entry_id)
     assert config_entry.state is ConfigEntryState.SETUP_ERROR
+
+
+async def test_migration_disables_capture_still(
+    hass: HomeAssistant, mock_camera: Callable[..., None], entity_registry: er.EntityRegistry
+) -> None:
+    """Entries from before 1.0.6 get the still capture button switched off once."""
+    mock_camera()
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="PYXIS 6K",
+        data=dict(ENTRY_DATA),
+        options={CONF_USE_WEBSOCKET: False},
+        version=1,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+    still = entity_registry.async_get_or_create(
+        "button",
+        DOMAIN,
+        f"{entry.entry_id}_capture_still",
+        suggested_object_id="pyxis_6k_capture_still",
+    )
+    assert still.disabled_by is None
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.minor_version == 2
+    assert entity_registry.async_get(still.entity_id).disabled_by is (
+        er.RegistryEntryDisabler.INTEGRATION
+    )
+    assert hass.states.get("button.pyxis_6k_auto_white_balance") is not None
+
+
+async def test_migration_from_newer_version_fails(hass: HomeAssistant) -> None:
+    """An entry made by a newer major version is not touched."""
+    entry = MockConfigEntry(domain=DOMAIN, title="PYXIS 6K", data=dict(ENTRY_DATA), version=2)
+    entry.add_to_hass(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.MIGRATION_ERROR
 
 
 async def test_remove_entry_clears_cache(

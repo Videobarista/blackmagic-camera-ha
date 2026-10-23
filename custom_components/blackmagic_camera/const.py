@@ -23,7 +23,9 @@ SLOW_POLL_EVERY: Final = 6
 # Properties covered by the websocket are re-read every N polls as a safety net.
 SAFETY_POLL_EVERY: Final = 30
 
-REQUEST_TIMEOUT: Final = 10
+# Cameras answer within milliseconds on a LAN; a short timeout notices a
+# camera that was switched off quickly.
+REQUEST_TIMEOUT: Final = 5
 # Answers to a partial update that are retried with the full object merged in.
 REJECTED_STATUS: Final = frozenset({400, 422})
 MAX_PARALLEL_REQUESTS: Final = 4
