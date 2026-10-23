@@ -111,7 +111,6 @@ Entities are only created for features your camera reports. Names with
 | Entity | Type | Notes |
 | --- | --- | --- |
 | Record | switch | Start / stop recording |
-| Capture still | button | Records a still frame to the active media |
 | Tally | select | Off / Preview / Program (can be driven by Home Assistant) |
 | ISO, Gain, Shutter, ND filter | select | Values offered by the camera; shutter follows angle or speed mode |
 | Auto exposure | select | Off / Continuous / One shot |
@@ -142,7 +141,9 @@ stabilization, Lens autofocus enabled / mode, Monitor {display} display LUT /
 zebra / focus assist / false color, Audio {n} input / gain / phantom power /
 pad / low cut filter.
 
-Disabled by default: Focus assist mode / color / intensity, Program feed
+Disabled by default: Capture still (records a still frame to the active
+media; PYXIS firmware 10.2 answers this API call with an error while the
+camera's own still button works), Focus assist mode / color / intensity, Program feed
 display, Frame guide ratio, Safe area size,
 Monitor {display} clean feed / frame guide / frame grids / safe area /
 brightness, all **Color …** correction values and **Color correction reset**.

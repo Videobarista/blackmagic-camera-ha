@@ -59,9 +59,12 @@ async def _reset_color(coordinator: BlackmagicCameraCoordinator) -> None:
     await coordinator.async_refresh_paths(path for path, _ in COLOR_DEFAULTS)
 
 
+# Disabled by default: PYXIS firmware 10.2 answers HTTP 500 to the API call
+# while the still button on the camera works.
 CAPTURE_STILL = CameraButtonDescription(
     key="capture_still",
     translation_key="capture_still",
+    entity_registry_enabled_default=False,
     press_fn=lambda c: c.async_command("post", P_STILL_CAPTURE, refresh=()),
 )
 AUTO_WHITE_BALANCE = CameraButtonDescription(

@@ -437,7 +437,7 @@
   },
   "exceptions": {
     "command_failed": {
-      "message": "The camera rejected the change to {path}: {error}"
+      "message": "The camera refused the request to {path}: {error}"
     },
     "cannot_connect": {
       "message": "Cannot reach the camera at {host}."

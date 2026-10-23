@@ -250,7 +250,6 @@ async def test_color_correction(
 @pytest.mark.parametrize(
     ("entity_id", "method", "path", "payload"),
     [
-        ("button.pyxis_6k_capture_still", "post", "/transports/0/doStillCapture", None),
         ("button.pyxis_6k_auto_white_balance", "put", "/video/whiteBalance/doAuto", None),
         (
             "button.pyxis_6k_lens_autofocus",
@@ -375,3 +374,17 @@ async def test_focus_assist_partial_then_full(
         value=75,
     )
     assert calls(aioclient_mock, "put", "/monitoring/focusAssist") == [{"intensity": 75}]
+
+
+async def test_capture_still(
+    hass: HomeAssistant, setup_camera: MockConfigEntry, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Capture still is disabled by default and posts without a body."""
+    entity_id = "button.pyxis_6k_capture_still"
+    assert hass.states.get(entity_id) is None
+    assert (
+        er.async_get(hass).async_get(entity_id).disabled_by is er.RegistryEntryDisabler.INTEGRATION
+    )
+    await _enable(hass, setup_camera, entity_id)
+    await _call(hass, BUTTON_DOMAIN, SERVICE_PRESS, entity_id)
+    assert calls(aioclient_mock, "post", "/transports/0/doStillCapture") == [None]

@@ -437,7 +437,7 @@
   },
   "exceptions": {
     "command_failed": {
-      "message": "De camera weigerde de wijziging van {path}: {error}"
+      "message": "De camera weigerde het verzoek naar {path}: {error}"
     },
     "cannot_connect": {
       "message": "De camera op {host} is niet bereikbaar."
