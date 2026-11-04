@@ -84,5 +84,10 @@ async def async_remove_entry(hass: HomeAssistant, entry: BlackmagicCameraConfigE
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: BlackmagicCameraConfigEntry) -> None:
-    """Reload when the options change."""
-    await hass.config_entries.async_reload(entry.entry_id)
+    """Reload when the options change.
+
+    Data updates made by the integration itself (a pinned certificate) do not
+    need a reload; the flows that change the connection reload on their own.
+    """
+    if entry.options != entry.runtime_data.options:
+        await hass.config_entries.async_reload(entry.entry_id)

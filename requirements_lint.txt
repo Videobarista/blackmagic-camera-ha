@@ -1,0 +1,2 @@
+# Linter used by the Ruff workflow; Dependabot keeps it up to date.
+ruff==0.16.9

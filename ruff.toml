@@ -2,7 +2,12 @@ target-version = "py313"
 line-length = 100
 
 [lint]
-select = ["B", "E", "F", "I", "UP", "W"]
+# S = Bandit security checks, BLE = blind except, ASYNC = blocking calls in async code.
+select = ["ASYNC", "B", "BLE", "E", "F", "I", "S", "UP", "W"]
+
+[lint.per-file-ignores]
+# Tests use assert and dummy credentials by design.
+"tests/**" = ["S101", "S105", "S106"]
 
 [lint.isort]
 force-sort-within-sections = true

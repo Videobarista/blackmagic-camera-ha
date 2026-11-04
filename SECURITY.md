@@ -6,8 +6,8 @@ Only the latest release of this integration receives fixes.
 
 | Version | Supported |
 | ------- | --------- |
-| 1.0.x   | Yes       |
-| < 1.0   | No        |
+| 1.1.x   | Yes       |
+| < 1.1   | No        |
 
 ## Reporting a vulnerability
 
@@ -29,5 +29,13 @@ API. Keep in mind:
   authentication unless **Enabled with security only** is chosen in
   Blackmagic Camera Setup. Anyone on the same network can control a camera
   that has plain HTTP access enabled.
-- Credentials are stored in the Home Assistant config entry and are redacted
-  from diagnostics, as are stream keys and passphrases.
+- Credentials are stored in the Home Assistant config entry (like every
+  integration) and are redacted from diagnostics, as are stream keys,
+  passphrases, the camera name and media volume names. Protect your
+  Home Assistant host and backups accordingly.
+- With HTTPS and the camera's self-signed certificate, the certificate is
+  pinned at first contact. Confirm a changed certificate only when you know
+  why it changed (firmware update, reset, new certificate).
+
+The README has a [Security section](README.md#security) with what the
+integration does and recommended network settings.

@@ -335,23 +335,39 @@ async def test_diagnostics_redact_secrets(
 async def test_api_basic_auth_retry(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
-    """A basic auth challenge is answered with the configured credentials."""
+    """A basic auth challenge over HTTPS is answered with the credentials."""
+    url = f"https://{HOST}/control/api/v1/video/iso"
     answers = [
         AiohttpClientMockResponse(
-            "get", f"{BASE}/video/iso", status=401, headers={"WWW-Authenticate": 'Basic realm="x"'}
+            "get", url, status=401, headers={"WWW-Authenticate": 'Basic realm="x"'}
         ),
-        AiohttpClientMockResponse("get", f"{BASE}/video/iso", json={"iso": 800}),
+        AiohttpClientMockResponse("get", url, json={"iso": 800}),
     ]
 
     async def _side_effect(method: str, url: Any, data: Any) -> AiohttpClientMockResponse:
         return answers.pop(0)
 
-    aioclient_mock.get(f"{BASE}/video/iso", side_effect=_side_effect)
+    aioclient_mock.get(url, side_effect=_side_effect)
+    session = aiohttp.ClientSession()
+    object.__setattr__(session, "_request", aioclient_mock.match_request)
+    api = BlackmagicCameraApi(session, HOST, use_https=True, username="admin", password="pw")
+    assert await api.get("/video/iso") == {"iso": 800}
+    assert aioclient_mock.mock_calls[1][3] == {"Authorization": "Basic YWRtaW46cHc="}
+    await session.close()
+
+
+async def test_api_no_basic_auth_over_http(aioclient_mock: AiohttpClientMocker) -> None:
+    """Credentials are never sent readable over plain HTTP."""
+    aioclient_mock.get(
+        f"{BASE}/video/iso", status=401, headers={"WWW-Authenticate": 'Basic realm="x"'}
+    )
     session = aiohttp.ClientSession()
     object.__setattr__(session, "_request", aioclient_mock.match_request)
     api = BlackmagicCameraApi(session, HOST, username="admin", password="pw")
-    assert await api.get("/video/iso") == {"iso": 800}
-    assert aioclient_mock.mock_calls[1][3] == {"Authorization": "Basic YWRtaW46cHc="}
+    with pytest.raises(InvalidAuth, match="plain HTTP"):
+        await api.get("/video/iso")
+    assert len(aioclient_mock.mock_calls) == 1
+    assert aioclient_mock.mock_calls[0][3] is None
     await session.close()
 
 

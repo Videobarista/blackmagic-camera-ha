@@ -22,7 +22,7 @@ async def async_get_config_entry_diagnostics(
             "data": async_redact_data(dict(entry.data), {*REDACT_KEYS, CONF_HOST}),
             "options": dict(entry.options),
         },
-        "capabilities": coordinator.capabilities.as_dict(),
+        "capabilities": async_redact_data(coordinator.capabilities.as_dict(), REDACT_KEYS),
         "online": coordinator.online,
         "offline_reason": coordinator.offline_reason,
         "websocket_connected": coordinator.websocket_connected,

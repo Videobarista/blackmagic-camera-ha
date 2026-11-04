@@ -14,7 +14,7 @@
         "data_description": {
           "host": "IP address or hostname of the camera, e.g. 192.168.1.50 or PYXIS-6K.local.",
           "use_https": "Turn on when web media manager is set to 'Enabled with security only'.",
-          "verify_ssl": "Leave off for the camera's default self-signed certificate.",
+          "verify_ssl": "Only for a certificate signed by a trusted authority. Leave off for the camera's own certificate: Home Assistant then remembers it at first contact and only accepts that certificate from then on.",
           "username": "Only needed when secure login is set in Blackmagic Camera Setup.",
           "password": "Only needed when secure login is set in Blackmagic Camera Setup."
         }
@@ -32,7 +32,7 @@
         "data_description": {
           "host": "IP address or hostname of the camera, e.g. 192.168.1.50 or PYXIS-6K.local.",
           "use_https": "Turn on when web media manager is set to 'Enabled with security only'.",
-          "verify_ssl": "Leave off for the camera's default self-signed certificate.",
+          "verify_ssl": "Only for a certificate signed by a trusted authority. Leave off for the camera's own certificate: Home Assistant then remembers it at first contact and only accepts that certificate from then on.",
           "username": "Only needed when secure login is set in Blackmagic Camera Setup.",
           "password": "Only needed when secure login is set in Blackmagic Camera Setup."
         }
@@ -42,6 +42,7 @@
       "cannot_connect": "Cannot connect. Check the address and that web media manager is enabled.",
       "invalid_auth": "Invalid username or password.",
       "unknown": "Unexpected error, see the log.",
+      "invalid_host": "Enter an IP address or host name, optionally with a port (e.g. 192.168.1.50 or pyxis.local:443).",
       "api_unavailable": "The camera answers, but its REST API is off. In Blackmagic Camera Setup → Network Access set 'Web media manager' to 'Enabled'.",
       "https_required": "The camera only accepts HTTPS (web media manager 'Enabled with security only'). Turn on 'Use HTTPS' and enter the camera's username and password."
     },
@@ -457,6 +458,21 @@
     "api_unavailable": {
       "title": "{name}: camera REST API is switched off",
       "description": "The camera at {host} answers, but its REST API returns 404. Home Assistant keeps checking and recovers automatically once the API is back.\n\nIn Blackmagic Camera Setup → Network Access set **Web media manager** to **Enabled**. If you chose **Enabled with security only**, reconfigure this integration with **Use HTTPS** and the username and password from the camera."
+    },
+    "certificate_changed": {
+      "title": "{name}: camera certificate changed",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Trust the new certificate?",
+            "description": "The camera at {host} presents a different TLS certificate than the one Home Assistant trusts, so it stays offline for now.\n\nTrusted: `{old_fingerprint}`\n\nNow presented: `{new_fingerprint}`\n\nThis is expected after a firmware update or reset of the camera, or after creating a new certificate in Blackmagic Camera Setup. If none of that happened, check your network before you continue. Select **Submit** to trust the new certificate; the entities stay as they are."
+          }
+        },
+        "abort": {
+          "cannot_connect": "The camera cannot be reached right now. Try again once it is on.",
+          "entry_removed": "This camera is no longer configured."
+        }
+      }
     }
   }
 }

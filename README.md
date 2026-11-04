@@ -8,6 +8,7 @@
 [![CodeQL](https://github.com/Videobarista/blackmagic-camera-ha/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/Videobarista/blackmagic-camera-ha/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Quality scale: Bronze](https://img.shields.io/badge/quality%20scale-aligned%20with%20Bronze-cd7f32.svg)](#quality-scale)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Videobarista/blackmagic-camera-ha/badge)](https://scorecard.dev/viewer/?uri=github.com/Videobarista/blackmagic-camera-ha)
 [![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Videobarista&repository=blackmagic-camera-ha&category=integration)
 
 Control Blackmagic Design cinema, broadcast and studio cameras from Home
@@ -94,7 +95,7 @@ diagnostics file to an issue.
 | --- | --- |
 | Host | IP address or hostname of the camera, e.g. `192.168.1.50` or `PYXIS-6K.local` |
 | Use HTTPS | For web media manager set to *Enabled with security only* |
-| Verify SSL certificate | Leave off for the camera's default self-signed certificate |
+| Verify SSL certificate | Only for a certificate signed by a trusted authority. Leave off for the camera's own (self-signed) certificate: it is then pinned, see [Security](#security) |
 | Username / Password | Only when secure login is configured on the camera |
 
 The connection can be changed later with **Reconfigure**. Under
@@ -190,9 +191,49 @@ The **Connection** sensor shows whether the camera answers; its
 | `unreachable` | No answer at all | Camera off, asleep or not on the network. Nothing to do: it is picked up automatically. |
 | `api_unavailable` | The camera answers, but the REST API returns 404 | In Blackmagic Camera Setup → Network Access set **Web media manager** to **Enabled**. A repair notice is shown in Home Assistant while this lasts. |
 | `https_required` | The camera redirects to HTTPS (web media manager **Enabled with security only**) | Reconfigure the integration with **Use HTTPS** and the username and password from Secure login, or set **Web media manager** back to **Enabled**. A repair notice is shown while this lasts. |
+| `certificate_changed` | The camera presents a different TLS certificate than the pinned one | Expected after a firmware update, reset or new certificate. Open **Settings → Repairs**, compare the fingerprints and select **Submit** to trust the new certificate. Entities and history stay as they are. |
 
-In both cases the integration keeps checking (every 10 s, backing off to 30 s)
-and recovers by itself, including the push connection.
+The integration keeps checking (every 10 s, backing off to 30 s) and recovers
+by itself, including the push connection. A changed certificate is the
+exception: it is never accepted without your confirmation.
+
+## Security
+
+What the integration does to protect your camera and Home Assistant:
+
+- **Certificate pinning**: with HTTPS and the camera's own certificate, the
+  certificate's SHA-256 fingerprint is remembered at first contact. From then
+  on only that certificate is accepted, so nobody else on the network can
+  pose as the camera and catch the password. A changed certificate needs
+  your confirmation under **Settings → Repairs**.
+- **Credentials**: digest authentication is preferred; basic authentication
+  is only used when the camera asks for it, and never over plain HTTP.
+  Passwords are never logged and are redacted from diagnostics, together
+  with stream keys, the camera name and media volume names.
+- **Untrusted answers**: responses are limited to 1 MiB, text to 255
+  characters, and names the camera reports are checked before they are used
+  in a request. A broken or tampered camera cannot crash or flood
+  Home Assistant.
+- **Gentle on the camera**: at most 4 requests at a time, one command at a
+  time, and back-off while the camera is offline.
+- **Nothing to open**: the integration only connects out to the camera; it
+  opens no ports, webhooks or listeners and has no dependencies beyond
+  Home Assistant itself.
+
+### Network advice
+
+The camera itself is the bigger risk: without **Enabled with security only**,
+anyone on the same network can control it and delete clips through web media
+manager. Recommended:
+
+| Where | Setting |
+| --- | --- |
+| Camera | Web media manager **Enabled with security only**, a strong password. Turn off **FTP** (unencrypted) and **SMB** if you do not use them, and Bluetooth if you do not use the Blackmagic Camera Control app. |
+| Network | Camera in an AV/IoT VLAN with a fixed address (DHCP reservation). No port forwarding. |
+| Firewall: allow | Home Assistant → camera TCP 443 (or 80 without security). Your own workstation → camera 443 (and 21/445 only if used). |
+| Firewall: block | Camera → Home Assistant and the rest of the LAN (the camera never needs to start a connection). Camera → internet, except DNS/NTP and Blackmagic Cloud or streaming if you use them. |
+
+See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ## Removal
 

@@ -4,25 +4,42 @@ The Camera Control REST API is served by the camera's built-in web media
 manager under ``/control/api/v1``. State changes are pushed over a websocket
 at ``/control/websocket``. This module only talks HTTP; Home Assistant
 specific logic lives in the coordinator.
+
+Everything the camera sends is treated as untrusted: responses are size
+limited, decoded defensively and bounded (text length, list length, nesting)
+before anything else sees them.
 """
 
 from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 from http import HTTPStatus
+import json
 import logging
+import math
+import ssl
 from typing import Any
 from urllib.parse import quote
 
 import aiohttp
 
-from .const import API_BASE_PATH, REQUEST_TIMEOUT, WEBSOCKET_PATHS
+from .const import (
+    API_BASE_PATH,
+    MAX_JSON_DEPTH,
+    MAX_LIST_ITEMS,
+    MAX_RESPONSE_BYTES,
+    MAX_TEXT_LENGTH,
+    REQUEST_TIMEOUT,
+    WEBSOCKET_PATHS,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 # Status codes that mean "this property exists on this camera".
 _SUPPORTED_STATUS = frozenset({HTTPStatus.OK, HTTPStatus.NO_CONTENT, HTTPStatus.FORBIDDEN})
+_CHUNK_SIZE = 64 * 1024
 
 
 class BlackmagicCameraError(Exception):
@@ -31,6 +48,16 @@ class BlackmagicCameraError(Exception):
 
 class CannotConnect(BlackmagicCameraError):
     """The camera could not be reached."""
+
+
+class CertificateMismatch(CannotConnect):
+    """The camera presents a different TLS certificate than the pinned one."""
+
+    def __init__(self, host: str, fingerprint: str) -> None:
+        """Initialize the error with the fingerprint the camera presented."""
+        self.fingerprint = fingerprint
+        shown = format_fingerprint(fingerprint)
+        super().__init__(f"{host} presents a different TLS certificate (SHA-256 {shown})")
 
 
 class InvalidAuth(BlackmagicCameraError):
@@ -58,6 +85,90 @@ class ApiError(BlackmagicCameraError):
         super().__init__(f"{method} {path} returned HTTP {status}{detail}")
 
 
+def format_fingerprint(fingerprint: str) -> str:
+    """Return a hex fingerprint as AA:BB:CC:... for display."""
+    value = fingerprint.upper()
+    return ":".join(value[i : i + 2] for i in range(0, len(value), 2))
+
+
+def split_host_port(host: str, default_port: int) -> tuple[str, int]:
+    """Split "host", "host:port" or "[v6]:port" into name and port."""
+    if host.startswith("["):
+        address, _, rest = host[1:].partition("]")
+        port = rest[1:] if rest.startswith(":") else ""
+        return address, int(port) if port.isdigit() else default_port
+    name, separator, port = host.rpartition(":")
+    if separator and port.isdigit():
+        return name, int(port)
+    return host, default_port
+
+
+def bound_json(value: Any, depth: int = 0) -> Any:
+    """Limit what a misbehaving camera can make Home Assistant keep.
+
+    Text is cut to MAX_TEXT_LENGTH (the Home Assistant state limit), lists
+    and objects to MAX_LIST_ITEMS entries, nesting to MAX_JSON_DEPTH levels,
+    and non-finite numbers (NaN, Infinity) become None.
+    """
+    if isinstance(value, str):
+        return value[:MAX_TEXT_LENGTH]
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, (dict, list)) and depth >= MAX_JSON_DEPTH:
+        return None
+    if isinstance(value, dict):
+        items = list(value.items())[:MAX_LIST_ITEMS]
+        return {str(key)[:MAX_TEXT_LENGTH]: bound_json(item, depth + 1) for key, item in items}
+    if isinstance(value, list):
+        return [bound_json(item, depth + 1) for item in value[:MAX_LIST_ITEMS]]
+    return value
+
+
+def parse_json_text(text: str) -> Any:
+    """Decode JSON from the camera; raises ValueError when it is not JSON."""
+    try:
+        return bound_json(json.loads(text))
+    except RecursionError as err:
+        # Absurdly deep nesting: json gives up with RecursionError.
+        raise ValueError("JSON nested too deeply") from err
+
+
+def _decode_body(raw: bytes, charset: str | None) -> Any:
+    try:
+        text = raw.decode(charset or "utf-8", errors="replace")
+    except LookupError:
+        text = raw.decode("utf-8", errors="replace")
+    if not text:
+        return None
+    try:
+        return parse_json_text(text)
+    except ValueError:
+        return text[:MAX_TEXT_LENGTH]
+
+
+async def async_fetch_fingerprint(host: str, ssl_context: ssl.SSLContext) -> str:
+    """Return the SHA-256 fingerprint of the certificate the camera presents."""
+    hostname, port = split_host_port(host, 443)
+    try:
+        async with asyncio.timeout(REQUEST_TIMEOUT):
+            _reader, writer = await asyncio.open_connection(hostname, port, ssl=ssl_context)
+    except (OSError, TimeoutError) as err:
+        detail = str(err) or type(err).__name__
+        raise CannotConnect(f"TLS connection to {host} failed: {detail}") from err
+    try:
+        ssl_object = writer.get_extra_info("ssl_object")
+        certificate = ssl_object.getpeercert(binary_form=True) if ssl_object else None
+    finally:
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except OSError as err:
+            _LOGGER.debug("Closing the TLS connection to %s: %s", host, err)
+    if not certificate:
+        raise CannotConnect(f"{host} did not present a TLS certificate")
+    return hashlib.sha256(certificate).hexdigest()
+
+
 class BlackmagicCameraApi:
     """Minimal client for the Blackmagic camera REST API."""
 
@@ -69,6 +180,7 @@ class BlackmagicCameraApi:
         use_https: bool = False,
         username: str | None = None,
         password: str | None = None,
+        fingerprint: str | None = None,
     ) -> None:
         """Initialize the client."""
         self._session = session
@@ -82,11 +194,18 @@ class BlackmagicCameraApi:
         # digest challenge is answered by the session middleware instead.
         self._send_basic = False
         self._ws_path: str | None = None
+        self._ssl: aiohttp.Fingerprint | None = None
+        self.set_fingerprint(fingerprint)
 
     @property
     def host(self) -> str:
         """Return the configured host."""
         return self._host
+
+    @property
+    def use_https(self) -> bool:
+        """Return True when the camera is reached over HTTPS."""
+        return self._use_https
 
     @property
     def base_url(self) -> str:
@@ -100,12 +219,34 @@ class BlackmagicCameraApi:
         scheme = "https" if self._use_https else "http"
         return f"{scheme}://{self._host}/"
 
+    def set_fingerprint(self, fingerprint: str | None) -> None:
+        """Only accept the TLS certificate with this SHA-256 fingerprint (hex)."""
+        if fingerprint and self._use_https:
+            self._ssl = aiohttp.Fingerprint(bytes.fromhex(fingerprint))
+        else:
+            self._ssl = None
+
     def _websocket_url(self, path: str) -> str:
         scheme = "wss" if self._use_https else "ws"
         return f"{scheme}://{self._host}{path}"
 
     def _url(self, path: str) -> str:
         return f"{self.base_url}{quote(path, safe='/')}"
+
+    async def _read_body(self, resp: aiohttp.ClientResponse, method: str, path: str) -> bytes:
+        """Read a response, refusing anything larger than MAX_RESPONSE_BYTES."""
+        too_large = f"response larger than {MAX_RESPONSE_BYTES} bytes"
+        length = resp.headers.get("Content-Length", "")
+        if length.isdigit() and int(length) > MAX_RESPONSE_BYTES:
+            raise ApiError(resp.status, method, path, too_large)
+        chunks: list[bytes] = []
+        size = 0
+        async for chunk in resp.content.iter_chunked(_CHUNK_SIZE):
+            size += len(chunk)
+            if size > MAX_RESPONSE_BYTES:
+                raise ApiError(resp.status, method, path, too_large)
+            chunks.append(chunk)
+        return b"".join(chunks)
 
     async def _request(
         self,
@@ -125,12 +266,14 @@ class BlackmagicCameraApi:
             kwargs["json"] = payload
         if self._send_basic and self._basic_auth is not None:
             kwargs["headers"] = {"Authorization": self._basic_auth}
+        if self._ssl is not None:
+            kwargs["ssl"] = self._ssl
 
         try:
             async with self._session.request(method, self._url(path), **kwargs) as resp:
                 status = resp.status
                 if HTTPStatus.MULTIPLE_CHOICES <= status < HTTPStatus.BAD_REQUEST:
-                    location = resp.headers.get("Location", "")
+                    location = resp.headers.get("Location", "")[:MAX_TEXT_LENGTH]
                     if location.lower().startswith("https:") and not self._use_https:
                         raise HttpsRequired(f"{self._host} only accepts HTTPS ({location})")
                     raise ApiError(status, method, path, f"redirected to {location}")
@@ -142,18 +285,22 @@ class BlackmagicCameraApi:
                         and not self._send_basic
                         and challenge.lower().startswith("basic")
                     ):
+                        if not self._use_https:
+                            # Basic sends the password readable; never without TLS.
+                            raise InvalidAuth(
+                                f"{self._host} asks for basic authentication over plain "
+                                "HTTP; enable HTTPS to send credentials"
+                            )
                         self._send_basic = True
                         return await self._request(method, path, payload, allow_basic_retry=False)
                     raise InvalidAuth(f"{method} {path} requires valid credentials")
                 body: Any = None
                 if status != HTTPStatus.NO_CONTENT:
-                    text = await resp.text()
-                    if text:
-                        try:
-                            body = await resp.json(content_type=None)
-                        except ValueError:
-                            body = text
+                    raw = await self._read_body(resp, method, path)
+                    body = _decode_body(raw, resp.charset)
                 return status, body
+        except aiohttp.ServerFingerprintMismatch as err:
+            raise CertificateMismatch(self._host, err.got.hex()) from err
         except (TimeoutError, aiohttp.ClientError) as err:
             detail = str(err) or type(err).__name__
             raise CannotConnect(f"Error talking to {self._host}: {detail}") from err
@@ -166,7 +313,7 @@ class BlackmagicCameraApi:
                 message = str(body.get("error") or body.get("message") or "")
             elif isinstance(body, str):
                 message = body[:200]
-            raise ApiError(status, method, path, message)
+            raise ApiError(status, method, path, message[:200])
         return body
 
     async def get(self, path: str) -> Any:
@@ -215,9 +362,15 @@ class BlackmagicCameraApi:
 
     async def _ws_connect_path(self, path: str) -> aiohttp.ClientWebSocketResponse:
         # A 10 s heartbeat notices a camera that was switched off within ~15 s.
-        kwargs: dict[str, Any] = {"heartbeat": 10, "timeout": aiohttp.ClientWSTimeout(ws_close=10)}
+        kwargs: dict[str, Any] = {
+            "heartbeat": 10,
+            "timeout": aiohttp.ClientWSTimeout(ws_close=10),
+            "max_msg_size": MAX_RESPONSE_BYTES,
+        }
         if self._send_basic and self._basic_auth is not None:
             kwargs["headers"] = {"Authorization": self._basic_auth}
+        if self._ssl is not None:
+            kwargs["ssl"] = self._ssl
         try:
             async with asyncio.timeout(REQUEST_TIMEOUT):
                 return await self._session.ws_connect(self._websocket_url(path), **kwargs)
@@ -232,6 +385,8 @@ class BlackmagicCameraApi:
             ):
                 raise WebsocketUnsupported(f"Websocket not offered: HTTP {err.status}") from err
             raise CannotConnect(f"Websocket handshake failed: {err}") from err
+        except aiohttp.ServerFingerprintMismatch as err:
+            raise CertificateMismatch(self._host, err.got.hex()) from err
         except (TimeoutError, aiohttp.ClientError) as err:
             detail = str(err) or type(err).__name__
             raise CannotConnect(f"Websocket connection failed: {detail}") from err

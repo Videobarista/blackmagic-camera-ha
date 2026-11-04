@@ -10,9 +10,25 @@ import aiohttp
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, CONF_VERIFY_SSL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_create_clientsession, async_get_clientsession
+from homeassistant.util.ssl import get_default_no_verify_context
 
-from .api import BlackmagicCameraApi
-from .const import CONF_USE_HTTPS
+from .api import BlackmagicCameraApi, async_fetch_fingerprint
+from .const import CONF_CERT_FINGERPRINT, CONF_USE_HTTPS
+
+
+def pins_certificate(data: Mapping[str, Any]) -> bool:
+    """Return True if the camera's certificate is pinned instead of verified.
+
+    Cameras use a self signed certificate, which cannot be verified against a
+    certificate authority. Pinning its fingerprint at first contact still
+    stops anyone else on the network from posing as the camera.
+    """
+    return bool(data.get(CONF_USE_HTTPS)) and not data.get(CONF_VERIFY_SSL)
+
+
+async def async_get_fingerprint(hass: HomeAssistant, host: str) -> str:
+    """Return the SHA-256 fingerprint of the camera's TLS certificate."""
+    return await async_fetch_fingerprint(host, get_default_no_verify_context())
 
 
 def async_create_api(
@@ -48,5 +64,6 @@ def async_create_api(
         use_https=bool(data.get(CONF_USE_HTTPS, False)),
         username=username,
         password=password,
+        fingerprint=data.get(CONF_CERT_FINGERPRINT) if pins_certificate(data) else None,
     )
     return api, cleanup

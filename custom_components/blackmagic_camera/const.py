@@ -10,6 +10,8 @@ MANUFACTURER: Final = "Blackmagic Design"
 CONF_USE_HTTPS: Final = "use_https"
 CONF_SCAN_INTERVAL: Final = "scan_interval"
 CONF_USE_WEBSOCKET: Final = "use_websocket"
+# SHA-256 of the camera's TLS certificate, pinned at first contact (hex).
+CONF_CERT_FINGERPRINT: Final = "cert_sha256"
 
 DEFAULT_SCAN_INTERVAL: Final = 10
 MIN_SCAN_INTERVAL: Final = 5
@@ -29,6 +31,14 @@ REQUEST_TIMEOUT: Final = 5
 # Answers to a partial update that are retried with the full object merged in.
 REJECTED_STATUS: Final = frozenset({400, 422})
 MAX_PARALLEL_REQUESTS: Final = 4
+
+# Limits for what the camera can send (untrusted input).
+MAX_RESPONSE_BYTES: Final = 1024 * 1024
+MAX_TEXT_LENGTH: Final = 255
+MAX_LIST_ITEMS: Final = 512
+MAX_JSON_DEPTH: Final = 16
+# At most this many displays, audio channels, media slots and panel buttons.
+MAX_SUB_DEVICES: Final = 32
 
 STORAGE_VERSION: Final = 1
 
@@ -251,7 +261,8 @@ FAST_PATHS: Final = frozenset(
     }
 )
 
-# Keys that must never show up in diagnostics.
+# Keys that must never show up in diagnostics: secrets, plus names people
+# give their camera and media (often their own name or initials).
 REDACT_KEYS: Final = {
     "password",
     "username",
@@ -259,4 +270,8 @@ REDACT_KEYS: Final = {
     "passphrase",
     "url",
     "credentials",
+    "server",
+    "deviceName",
+    "volume",
+    CONF_CERT_FINGERPRINT,
 }

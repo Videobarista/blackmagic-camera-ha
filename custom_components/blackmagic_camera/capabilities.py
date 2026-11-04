@@ -8,8 +8,10 @@ HTTP 404/501 simply does not get an entity.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 import logging
+import re
 from typing import Any
 
 from .api import BlackmagicCameraApi, CannotConnect, InvalidAuth, gather_limited
@@ -18,6 +20,7 @@ from .const import (
     EVENT_STILL_CAPTURED,
     GLOBAL_PATHS,
     MAX_PARALLEL_REQUESTS,
+    MAX_SUB_DEVICES,
     MONITOR_BRIGHTNESS,
     MONITOR_FEATURES,
     P_AUDIO_CHANNELS,
@@ -31,6 +34,30 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Names the camera reports (displays, panel buttons) end up in URL paths, so
+# only plain names are accepted: no "/", "..", "?", "%" or control characters.
+_SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9 _.-]{0,63}")
+
+
+def safe_names(values: Iterable[Any]) -> list[str]:
+    """Return the plain, unique names among values (at most MAX_SUB_DEVICES)."""
+    names: list[str] = []
+    for value in values:
+        name = str(value) if isinstance(value, (str, int)) else ""
+        if not _SAFE_NAME.fullmatch(name):
+            _LOGGER.debug("Ignoring unexpected name from the camera: %r", name[:64])
+            continue
+        if name not in names:
+            names.append(name)
+    return names[:MAX_SUB_DEVICES]
+
+
+def bounded_count(value: Any) -> int:
+    """Return a count reported by the camera, limited to 0..MAX_SUB_DEVICES."""
+    if not isinstance(value, int) or isinstance(value, bool):
+        return 0
+    return max(0, min(value, MAX_SUB_DEVICES))
 
 
 @dataclass
@@ -75,11 +102,11 @@ class CameraCapabilities:
         return cls(
             product=dict(data.get("product") or {}),
             supported=set(data.get("supported") or ()),
-            displays=[str(d) for d in data.get("displays") or ()],
-            audio_channels=int(data.get("audio_channels") or 0),
-            media_slots=int(data.get("media_slots") or 0),
+            displays=safe_names(data.get("displays") or ()),
+            audio_channels=bounded_count(data.get("audio_channels")),
+            media_slots=bounded_count(data.get("media_slots")),
             still_capture=bool(data.get("still_capture")),
-            panel_buttons=[str(b) for b in data.get("panel_buttons") or ()],
+            panel_buttons=safe_names(data.get("panel_buttons") or ()),
             events=[str(e) for e in data.get("events") or ()],
         )
 
@@ -151,28 +178,26 @@ async def async_probe_capabilities(
     if isinstance(workingset, dict):
         slots = workingset.get("workingset")
         size = workingset.get("size")
-        caps.media_slots = int(size) if isinstance(size, int) else 0
+        caps.media_slots = bounded_count(size)
         if isinstance(slots, list):
-            caps.media_slots = max(caps.media_slots, len(slots))
+            caps.media_slots = max(caps.media_slots, bounded_count(len(slots)))
 
     displays_supported, displays = probed[P_DISPLAYS]
     if displays_supported and isinstance(displays, dict):
-        caps.displays = [str(d) for d in displays.get("displays") or [] if d]
+        caps.displays = safe_names(displays.get("displays") or [])
 
     panel_supported, panel = probed[P_PANEL_DEVICES]
     if panel_supported and isinstance(panel, list):
-        caps.panel_buttons = [
-            str(item["name"])
+        caps.panel_buttons = safe_names(
+            item.get("name")
             for item in panel
-            if isinstance(item, dict)
-            and item.get("name")
-            and item.get("type", "button") == "button"
-        ]
+            if isinstance(item, dict) and item.get("type", "button") == "button"
+        )
 
     channels_supported, channels = probed[P_AUDIO_CHANNELS]
     if channels_supported and isinstance(channels, dict):
         count = channels.get("channels")
-        caps.audio_channels = int(count) if isinstance(count, int) else 0
+        caps.audio_channels = bounded_count(count)
 
     sub_paths = [
         monitor_path(display, feature)

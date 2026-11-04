@@ -6,7 +6,7 @@ from collections.abc import Callable, Generator
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -20,6 +20,9 @@ BASE = f"http://{HOST}/control/api/v1"
 FIXTURE = Path(__file__).parent / "fixtures" / "pyxis_6k.json"
 
 ENTRY_DATA = {CONF_HOST: HOST, CONF_USE_HTTPS: False, CONF_VERIFY_SSL: False}
+# SHA-256 fingerprints of the camera's TLS certificate (before / after a reset).
+FINGERPRINT = "ab" * 32
+NEW_FINGERPRINT = "cd" * 32
 
 
 @pytest.fixture(autouse=True)
@@ -34,6 +37,16 @@ def fast_read_back() -> Generator[None]:
         yield
 
 
+@pytest.fixture(autouse=True)
+def mock_fingerprint() -> Generator[AsyncMock]:
+    """Answer certificate fingerprint lookups without opening a TLS connection."""
+    with patch(
+        "custom_components.blackmagic_camera.helpers.async_fetch_fingerprint",
+        AsyncMock(return_value=FINGERPRINT),
+    ) as mock:
+        yield mock
+
+
 @pytest.fixture
 def camera_data() -> dict[str, dict[str, Any]]:
     """Return the recorded answers of a PYXIS 6K (firmware 10.2)."""
@@ -46,8 +59,12 @@ def mock_camera(
 ) -> Callable[..., None]:
     """Register the camera answers; unknown paths answer 501 like the camera."""
 
-    def _register(overrides: dict[str, dict[str, Any]] | None = None, host: str = HOST) -> None:
-        base = f"http://{host}/control/api/v1"
+    def _register(
+        overrides: dict[str, dict[str, Any]] | None = None,
+        host: str = HOST,
+        scheme: str = "http",
+    ) -> None:
+        base = f"{scheme}://{host}/control/api/v1"
         answers = {**camera_data, **(overrides or {})}
         for path, answer in answers.items():
             aioclient_mock.get(

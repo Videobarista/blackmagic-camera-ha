@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Iterable
 from datetime import timedelta
-import json
 import logging
 from typing import Any
 
@@ -23,13 +22,17 @@ from .api import (
     BlackmagicCameraApi,
     BlackmagicCameraError,
     CannotConnect,
+    CertificateMismatch,
     HttpsRequired,
     InvalidAuth,
     WebsocketUnsupported,
+    format_fingerprint,
     gather_limited,
+    parse_json_text,
 )
 from .capabilities import CameraCapabilities, async_probe_capabilities
 from .const import (
+    CONF_CERT_FINGERPRINT,
     CONF_SCAN_INTERVAL,
     CONF_USE_WEBSOCKET,
     DEFAULT_SCAN_INTERVAL,
@@ -43,6 +46,7 @@ from .const import (
     SLOW_POLL_EVERY,
     STORAGE_VERSION,
 )
+from .helpers import async_get_fingerprint, pins_certificate
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,8 +65,13 @@ _WS_UNSUPPORTED_RETRY = 600
 REASON_UNREACHABLE = "unreachable"
 REASON_API_UNAVAILABLE = "api_unavailable"
 REASON_HTTPS_REQUIRED = "https_required"
-# Reasons the user can fix in the camera settings get a repair issue.
-_ISSUE_REASONS = frozenset({REASON_API_UNAVAILABLE, REASON_HTTPS_REQUIRED})
+REASON_CERTIFICATE_CHANGED = "certificate_changed"
+# Reasons the user can fix get a repair issue; a changed certificate can be
+# trusted right from the repair.
+_ISSUE_REASONS = frozenset(
+    {REASON_API_UNAVAILABLE, REASON_HTTPS_REQUIRED, REASON_CERTIFICATE_CHANGED}
+)
+_FIXABLE_REASONS = frozenset({REASON_CERTIFICATE_CHANGED})
 # Answers meaning "this firmware does not know that call".
 _NOT_FOUND_STATUS = frozenset({404, 405, 501})
 
@@ -109,6 +118,10 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Properties changed by the current update; None means "everything".
         self.changed_paths: frozenset[str] | None = None
         self._use_websocket: bool = entry.options.get(CONF_USE_WEBSOCKET, DEFAULT_USE_WEBSOCKET)
+        # The options this coordinator runs with; only a change reloads.
+        self.options = dict(entry.options)
+        # One command at a time, so automations cannot flood the camera.
+        self._command_lock = asyncio.Lock()
         self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}"
         )
@@ -136,6 +149,7 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         as the camera answers again.
         """
         try:
+            await self._async_ensure_pinned()
             caps, data = await async_probe_capabilities(self.api)
         except InvalidAuth as err:
             raise ConfigEntryError(
@@ -155,6 +169,26 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.async_set_updated_data(data)
         await self._store.async_save(caps.as_dict())
 
+    async def _async_ensure_pinned(self) -> None:
+        """Pin the camera's TLS certificate at first contact (trust on first use).
+
+        Only for HTTPS without certificate verification (cameras use a self
+        signed certificate). From then on only that certificate is accepted.
+        """
+        data = self.config_entry.data
+        if not pins_certificate(data) or data.get(CONF_CERT_FINGERPRINT):
+            return
+        fingerprint = await async_get_fingerprint(self.hass, self.api.host)
+        self.api.set_fingerprint(fingerprint)
+        self.hass.config_entries.async_update_entry(
+            self.config_entry, data={**data, CONF_CERT_FINGERPRINT: fingerprint}
+        )
+        _LOGGER.info(
+            "Trusting the TLS certificate of camera %s (SHA-256 %s)",
+            self.api.host,
+            format_fingerprint(fingerprint),
+        )
+
     # ------------------------------------------------------------------
     # Online / offline
     # ------------------------------------------------------------------
@@ -166,7 +200,8 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.online = True
             self._poll_count = 0  # start with a full poll
             self._ws_wakeup.set()
-        self._delete_issue(self.offline_reason)
+        for reason in _ISSUE_REASONS:
+            self._delete_issue(reason)
         self.offline_reason = None
         self._backoff = None
         self.update_interval = self.scan_interval
@@ -190,7 +225,9 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         log and a repair issue. A camera that does not answer at all is
         simply switched off.
         """
-        if isinstance(err, HttpsRequired):
+        if isinstance(err, CertificateMismatch):
+            reason = REASON_CERTIFICATE_CHANGED
+        elif isinstance(err, HttpsRequired):
             reason = REASON_HTTPS_REQUIRED
         elif isinstance(err, ApiError) and err.status == 404:
             reason = REASON_API_UNAVAILABLE
@@ -208,9 +245,18 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "only accepts HTTPS (web media manager 'Enabled with security only'). "
                     "Reconfigure the integration with HTTPS and the camera's credentials"
                 )
+            elif reason == REASON_CERTIFICATE_CHANGED:
+                hint = (
+                    f"presents a different TLS certificate than the trusted one ({err}). "
+                    "If the camera was updated or reset, trust the new certificate under "
+                    "Settings > Repairs"
+                )
             else:
                 hint = f"is offline ({err})"
-            _LOGGER.info(
+            # A changed certificate is a security event, not just "offline".
+            level = logging.WARNING if reason == REASON_CERTIFICATE_CHANGED else logging.INFO
+            _LOGGER.log(
+                level,
                 "Camera %s %s; checking every %s s with back-off up to %s s",
                 self.api.host,
                 hint,
@@ -222,13 +268,14 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self.hass,
                     DOMAIN,
                     self._issue_id(reason),
-                    is_fixable=False,
+                    is_fixable=reason in _FIXABLE_REASONS,
                     severity=ir.IssueSeverity.WARNING,
                     translation_key=reason,
                     translation_placeholders={
                         "name": self.config_entry.title,
                         "host": self.api.host,
                     },
+                    data={"entry_id": self.config_entry.entry_id},
                 )
         self.offline_reason = reason
         self.online = False
@@ -283,6 +330,7 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not self.online:
             # One cheap request to see whether the camera is back.
             try:
+                await self._async_ensure_pinned()
                 await self.api.get(P_PRODUCT)
             except InvalidAuth as err:
                 raise UpdateFailed(
@@ -377,6 +425,7 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_verify_capabilities(self) -> dict[str, Any]:
         """Probe a camera that was offline when Home Assistant started."""
         try:
+            await self._async_ensure_pinned()
             caps, data = await async_probe_capabilities(self.api)
         except InvalidAuth as err:
             raise UpdateFailed(translation_domain=DOMAIN, translation_key="invalid_auth") from err
@@ -415,13 +464,14 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         firmware that does not know the preferred call.
         """
         try:
-            try:
-                await self._async_send(method, path, payload)
-            except ApiError as err:
-                if fallback is None or err.status not in fallback_status:
-                    raise
-                _LOGGER.debug("%s answered %s, trying %s", path, err.status, fallback)
-                await self._async_send(*fallback)
+            async with self._command_lock:
+                try:
+                    await self._async_send(method, path, payload)
+                except ApiError as err:
+                    if fallback is None or err.status not in fallback_status:
+                        raise
+                    _LOGGER.debug("%s answered %s, trying %s", path, err.status, fallback)
+                    await self._async_send(*fallback)
         except ApiError as err:
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
@@ -574,7 +624,7 @@ class BlackmagicCameraCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _handle_ws_text(self, raw: str) -> None:
         """Process one websocket text frame."""
         try:
-            message = json.loads(raw)
+            message = parse_json_text(raw)
         except ValueError:
             _LOGGER.debug("Ignoring non JSON websocket frame: %s", raw[:200])
             return

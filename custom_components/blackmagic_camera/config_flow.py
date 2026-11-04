@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import ipaddress
 import logging
+import re
 from typing import Any
 
 import voluptuous as vol
@@ -23,6 +25,7 @@ from homeassistant.helpers.selector import (
 
 from .api import ApiError, CannotConnect, HttpsRequired, InvalidAuth
 from .const import (
+    CONF_CERT_FINGERPRINT,
     CONF_SCAN_INTERVAL,
     CONF_USE_HTTPS,
     CONF_USE_WEBSOCKET,
@@ -32,9 +35,57 @@ from .const import (
     MAX_SCAN_INTERVAL,
     MIN_SCAN_INTERVAL,
 )
-from .helpers import async_create_api
+from .helpers import async_create_api, async_get_fingerprint, pins_certificate
 
 _LOGGER = logging.getLogger(__name__)
+
+_HOSTNAME = re.compile(
+    r"(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.?"
+)
+
+
+def normalize_host(value: str) -> str | None:
+    """Return "name", "name:port" or "[v6]:port", or None when invalid.
+
+    Only an IP address or host name with an optional port is accepted, so
+    nothing else (credentials, paths, queries) can slip into the URLs.
+    """
+    host = value.strip()
+    for prefix in ("http://", "https://"):
+        if host.lower().startswith(prefix):
+            host = host[len(prefix) :]
+    host = host.split("/", 1)[0]
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        return f"[{address}]" if address.version == 6 else str(address)
+
+    port: str | None = None
+    if host.startswith("["):
+        inner, closed, rest = host[1:].partition("]")
+        try:
+            name = f"[{ipaddress.IPv6Address(inner)}]"
+        except ValueError:
+            return None
+        if not closed or (rest and not rest.startswith(":")):
+            return None
+        port = rest[1:] if rest else None
+    else:
+        name, separator, port_part = host.rpartition(":")
+        if not separator:
+            name = host
+        else:
+            port = port_part
+        if not _HOSTNAME.fullmatch(name):
+            return None
+    if port is None:
+        return name
+    if not port.isdigit() or not 1 <= int(port) <= 65535:
+        return None
+    return f"{name}:{int(port)}"
 
 
 def _connection_schema(defaults: Mapping[str, Any]) -> vol.Schema:
@@ -60,13 +111,11 @@ def _connection_schema(defaults: Mapping[str, Any]) -> vol.Schema:
     )
 
 
-def _clean_input(user_input: Mapping[str, Any]) -> dict[str, Any]:
-    """Normalize the form input."""
-    host = str(user_input[CONF_HOST]).strip()
-    for prefix in ("http://", "https://"):
-        if host.lower().startswith(prefix):
-            host = host[len(prefix) :]
-    host = host.split("/", 1)[0]
+def _clean_input(user_input: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Normalize the form input; None when the host is not valid."""
+    host = normalize_host(str(user_input[CONF_HOST]))
+    if host is None:
+        return None
     data: dict[str, Any] = {
         CONF_HOST: host,
         CONF_USE_HTTPS: bool(user_input.get(CONF_USE_HTTPS, False)),
@@ -97,8 +146,16 @@ class BlackmagicCameraConfigFlow(ConfigFlow, domain=DOMAIN):
     async def _async_try_connect(
         self, data: dict[str, Any], errors: dict[str, str]
     ) -> dict[str, Any] | None:
-        """Validate the connection, filling errors on failure."""
+        """Validate the connection, filling errors on failure.
+
+        With HTTPS and a self signed certificate, the certificate seen now is
+        pinned (stored in data) and the connection is validated with it.
+        """
         try:
+            if pins_certificate(data):
+                data[CONF_CERT_FINGERPRINT] = await async_get_fingerprint(
+                    self.hass, data[CONF_HOST]
+                )
             return await _async_validate(self.hass, data)
         except InvalidAuth:
             errors["base"] = "invalid_auth"
@@ -120,11 +177,16 @@ class BlackmagicCameraConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             data = _clean_input(user_input)
-            self._async_abort_entries_match({CONF_HOST: data[CONF_HOST]})
-            product = await self._async_try_connect(data, errors)
-            if product is not None:
-                title = product.get("deviceName") or product.get("productName") or data[CONF_HOST]
-                return self.async_create_entry(title=str(title), data=data)
+            if data is None:
+                errors[CONF_HOST] = "invalid_host"
+            else:
+                self._async_abort_entries_match({CONF_HOST: data[CONF_HOST]})
+                product = await self._async_try_connect(data, errors)
+                if product is not None:
+                    title = (
+                        product.get("deviceName") or product.get("productName") or data[CONF_HOST]
+                    )
+                    return self.async_create_entry(title=str(title), data=data)
 
         return self.async_show_form(
             step_id="user",
@@ -140,14 +202,18 @@ class BlackmagicCameraConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             data = _clean_input(user_input)
-            for other in self._async_current_entries(include_ignore=False):
-                if (
-                    other.entry_id != entry.entry_id
-                    and other.data.get(CONF_HOST) == data[CONF_HOST]
-                ):
-                    return self.async_abort(reason="already_configured")
-            if await self._async_try_connect(data, errors) is not None:
-                return self.async_update_reload_and_abort(entry, data=data)
+            if data is None:
+                errors[CONF_HOST] = "invalid_host"
+            else:
+                for other in self._async_current_entries(include_ignore=False):
+                    if (
+                        other.entry_id != entry.entry_id
+                        and other.data.get(CONF_HOST) == data[CONF_HOST]
+                    ):
+                        return self.async_abort(reason="already_configured")
+                # Same entry, same entities: a new certificate is pinned here too.
+                if await self._async_try_connect(data, errors) is not None:
+                    return self.async_update_reload_and_abort(entry, data=data)
 
         return self.async_show_form(
             step_id="reconfigure",

@@ -10,6 +10,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMocker
 
 from custom_components.blackmagic_camera.const import (
+    CONF_CERT_FINGERPRINT,
     CONF_SCAN_INTERVAL,
     CONF_USE_HTTPS,
     CONF_USE_WEBSOCKET,
@@ -20,7 +21,7 @@ from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, CONF_VE
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
-from .conftest import BASE, ENTRY_DATA, HOST
+from .conftest import BASE, ENTRY_DATA, FINGERPRINT, HOST
 
 PRODUCT = {"deviceName": "PYXIS 6K", "productName": "PYXIS 6K", "softwareVersion": "10.2"}
 
@@ -73,6 +74,8 @@ async def test_user_flow_with_credentials(
         CONF_VERIFY_SSL: False,
         CONF_USERNAME: "admin",
         CONF_PASSWORD: "secret",
+        # The camera's own certificate is pinned at first contact.
+        CONF_CERT_FINGERPRINT: FINGERPRINT,
     }
 
 
