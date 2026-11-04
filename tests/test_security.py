@@ -38,6 +38,7 @@ from custom_components.blackmagic_camera.const import (
     CONF_USE_HTTPS,
     CONF_USE_WEBSOCKET,
     DOMAIN,
+    MAX_JSON_DEPTH,
     MAX_RESPONSE_BYTES,
     MAX_SUB_DEVICES,
     MAX_TEXT_LENGTH,
@@ -187,8 +188,24 @@ def test_bound_json() -> None:
     for _ in range(15):
         bounded = bounded[0]
     assert bounded == [None]
-    with pytest.raises(ValueError, match="nested too deeply"):
-        parse_json_text("[" * 100_000 + "]" * 100_000)
+
+    # Absurd nesting either makes json give up (reported as ValueError) or
+    # parses; which one depends on the Python build and stack size. Either
+    # way the result is bounded and nothing crashes.
+    try:
+        parsed: Any = parse_json_text("[" * 100_000 + "]" * 100_000)
+    except ValueError:
+        parsed = None
+    depth = 0
+    while isinstance(parsed, list) and parsed:
+        parsed = parsed[0]
+        depth += 1
+    assert depth <= MAX_JSON_DEPTH
+    with (
+        patch("custom_components.blackmagic_camera.api.json.loads", side_effect=RecursionError),
+        pytest.raises(ValueError, match="nested too deeply"),
+    ):
+        parse_json_text("[]")
 
 
 async def test_response_size_limit(aioclient_mock: AiohttpClientMocker) -> None:
