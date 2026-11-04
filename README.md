@@ -9,6 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Quality scale: Bronze](https://img.shields.io/badge/quality%20scale-aligned%20with%20Bronze-cd7f32.svg)](#quality-scale)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Videobarista/blackmagic-camera-ha/badge)](https://scorecard.dev/viewer/?uri=github.com/Videobarista/blackmagic-camera-ha)
+
 [![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Videobarista&repository=blackmagic-camera-ha&category=integration)
 
 Control Blackmagic Design cinema, broadcast and studio cameras from Home
