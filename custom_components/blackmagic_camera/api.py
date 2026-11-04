@@ -6,8 +6,8 @@ at ``/control/websocket``. This module only talks HTTP; Home Assistant
 specific logic lives in the coordinator.
 
 Everything the camera sends is treated as untrusted: responses are size
-limited, decoded defensively and bounded (text length, list length, nesting)
-before anything else sees them.
+limited, then decoded and bounded by parsing.py (text length, list length,
+nesting) before anything else sees them.
 """
 
 from __future__ import annotations
@@ -16,9 +16,7 @@ import asyncio
 import base64
 import hashlib
 from http import HTTPStatus
-import json
 import logging
-import math
 import ssl
 from typing import Any
 from urllib.parse import quote
@@ -27,13 +25,12 @@ import aiohttp
 
 from .const import (
     API_BASE_PATH,
-    MAX_JSON_DEPTH,
-    MAX_LIST_ITEMS,
     MAX_RESPONSE_BYTES,
     MAX_TEXT_LENGTH,
     REQUEST_TIMEOUT,
     WEBSOCKET_PATHS,
 )
+from .parsing import content_length, decode_body, format_fingerprint, split_host_port
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -83,67 +80,6 @@ class ApiError(BlackmagicCameraError):
         self.message = message
         detail = f": {message}" if message else ""
         super().__init__(f"{method} {path} returned HTTP {status}{detail}")
-
-
-def format_fingerprint(fingerprint: str) -> str:
-    """Return a hex fingerprint as AA:BB:CC:... for display."""
-    value = fingerprint.upper()
-    return ":".join(value[i : i + 2] for i in range(0, len(value), 2))
-
-
-def split_host_port(host: str, default_port: int) -> tuple[str, int]:
-    """Split "host", "host:port" or "[v6]:port" into name and port."""
-    if host.startswith("["):
-        address, _, rest = host[1:].partition("]")
-        port = rest[1:] if rest.startswith(":") else ""
-        return address, int(port) if port.isdigit() else default_port
-    name, separator, port = host.rpartition(":")
-    if separator and port.isdigit():
-        return name, int(port)
-    return host, default_port
-
-
-def bound_json(value: Any, depth: int = 0) -> Any:
-    """Limit what a misbehaving camera can make Home Assistant keep.
-
-    Text is cut to MAX_TEXT_LENGTH (the Home Assistant state limit), lists
-    and objects to MAX_LIST_ITEMS entries, nesting to MAX_JSON_DEPTH levels,
-    and non-finite numbers (NaN, Infinity) become None.
-    """
-    if isinstance(value, str):
-        return value[:MAX_TEXT_LENGTH]
-    if isinstance(value, float) and not math.isfinite(value):
-        return None
-    if isinstance(value, (dict, list)) and depth >= MAX_JSON_DEPTH:
-        return None
-    if isinstance(value, dict):
-        items = list(value.items())[:MAX_LIST_ITEMS]
-        return {str(key)[:MAX_TEXT_LENGTH]: bound_json(item, depth + 1) for key, item in items}
-    if isinstance(value, list):
-        return [bound_json(item, depth + 1) for item in value[:MAX_LIST_ITEMS]]
-    return value
-
-
-def parse_json_text(text: str) -> Any:
-    """Decode JSON from the camera; raises ValueError when it is not JSON."""
-    try:
-        return bound_json(json.loads(text))
-    except RecursionError as err:
-        # Absurdly deep nesting: json gives up with RecursionError.
-        raise ValueError("JSON nested too deeply") from err
-
-
-def _decode_body(raw: bytes, charset: str | None) -> Any:
-    try:
-        text = raw.decode(charset or "utf-8", errors="replace")
-    except LookupError:
-        text = raw.decode("utf-8", errors="replace")
-    if not text:
-        return None
-    try:
-        return parse_json_text(text)
-    except ValueError:
-        return text[:MAX_TEXT_LENGTH]
 
 
 async def async_fetch_fingerprint(host: str, ssl_context: ssl.SSLContext) -> str:
@@ -236,8 +172,8 @@ class BlackmagicCameraApi:
     async def _read_body(self, resp: aiohttp.ClientResponse, method: str, path: str) -> bytes:
         """Read a response, refusing anything larger than MAX_RESPONSE_BYTES."""
         too_large = f"response larger than {MAX_RESPONSE_BYTES} bytes"
-        length = resp.headers.get("Content-Length", "")
-        if length.isdigit() and int(length) > MAX_RESPONSE_BYTES:
+        length = content_length(resp.headers.get("Content-Length", ""))
+        if length is not None and length > MAX_RESPONSE_BYTES:
             raise ApiError(resp.status, method, path, too_large)
         chunks: list[bytes] = []
         size = 0
@@ -297,7 +233,7 @@ class BlackmagicCameraApi:
                 body: Any = None
                 if status != HTTPStatus.NO_CONTENT:
                     raw = await self._read_body(resp, method, path)
-                    body = _decode_body(raw, resp.charset)
+                    body = decode_body(raw, resp.charset)
                 return status, body
         except aiohttp.ServerFingerprintMismatch as err:
             raise CertificateMismatch(self._host, err.got.hex()) from err

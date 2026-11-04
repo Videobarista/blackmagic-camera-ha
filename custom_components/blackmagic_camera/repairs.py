@@ -18,9 +18,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 
-from .api import BlackmagicCameraError, format_fingerprint
+from .api import BlackmagicCameraError
 from .const import CONF_CERT_FINGERPRINT
 from .helpers import async_get_fingerprint
+from .parsing import format_fingerprint
 
 
 class TrustCertificateFlow(RepairsFlow):

@@ -8,10 +8,8 @@ HTTP 404/501 simply does not get an entity.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 import logging
-import re
 from typing import Any
 
 from .api import BlackmagicCameraApi, CannotConnect, InvalidAuth, gather_limited
@@ -20,7 +18,6 @@ from .const import (
     EVENT_STILL_CAPTURED,
     GLOBAL_PATHS,
     MAX_PARALLEL_REQUESTS,
-    MAX_SUB_DEVICES,
     MONITOR_BRIGHTNESS,
     MONITOR_FEATURES,
     P_AUDIO_CHANNELS,
@@ -32,32 +29,9 @@ from .const import (
     audio_path,
     monitor_path,
 )
+from .parsing import bounded_count, safe_names
 
 _LOGGER = logging.getLogger(__name__)
-
-# Names the camera reports (displays, panel buttons) end up in URL paths, so
-# only plain names are accepted: no "/", "..", "?", "%" or control characters.
-_SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9 _.-]{0,63}")
-
-
-def safe_names(values: Iterable[Any]) -> list[str]:
-    """Return the plain, unique names among values (at most MAX_SUB_DEVICES)."""
-    names: list[str] = []
-    for value in values:
-        name = str(value) if isinstance(value, (str, int)) else ""
-        if not _SAFE_NAME.fullmatch(name):
-            _LOGGER.debug("Ignoring unexpected name from the camera: %r", name[:64])
-            continue
-        if name not in names:
-            names.append(name)
-    return names[:MAX_SUB_DEVICES]
-
-
-def bounded_count(value: Any) -> int:
-    """Return a count reported by the camera, limited to 0..MAX_SUB_DEVICES."""
-    if not isinstance(value, int) or isinstance(value, bool):
-        return 0
-    return max(0, min(value, MAX_SUB_DEVICES))
 
 
 @dataclass

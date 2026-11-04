@@ -21,17 +21,8 @@ from custom_components.blackmagic_camera.api import (
     CannotConnect,
     CertificateMismatch,
     async_fetch_fingerprint,
-    bound_json,
-    format_fingerprint,
-    parse_json_text,
-    split_host_port,
 )
-from custom_components.blackmagic_camera.capabilities import (
-    CameraCapabilities,
-    bounded_count,
-    safe_names,
-)
-from custom_components.blackmagic_camera.config_flow import normalize_host
+from custom_components.blackmagic_camera.capabilities import CameraCapabilities
 from custom_components.blackmagic_camera.const import (
     AUDIO_FEATURES,
     CONF_CERT_FINGERPRINT,
@@ -44,6 +35,16 @@ from custom_components.blackmagic_camera.const import (
     MAX_TEXT_LENGTH,
 )
 from custom_components.blackmagic_camera.diagnostics import async_get_config_entry_diagnostics
+from custom_components.blackmagic_camera.parsing import (
+    bound_json,
+    bounded_count,
+    content_length,
+    format_fingerprint,
+    normalize_host,
+    parse_json_text,
+    safe_names,
+    split_host_port,
+)
 from custom_components.blackmagic_camera.repairs import async_create_fix_flow
 from homeassistant.config_entries import SOURCE_USER, ConfigEntryState
 from homeassistant.const import CONF_HOST, CONF_VERIFY_SSL
@@ -93,6 +94,10 @@ def _https_entry(**data: Any) -> MockConfigEntry:
         ("[::1", None),
         ("[::1]x", None),
         ("", None),
+        # Unicode digits pass str.isdigit() but are no port (found by fuzzing).
+        ("cam.local:²", None),
+        ("[fe80::1]:٤٤٣", None),
+        ("fe80::1%eth0", None),
     ],
 )
 def test_normalize_host(value: str, expected: str | None) -> None:
@@ -202,7 +207,7 @@ def test_bound_json() -> None:
         depth += 1
     assert depth <= MAX_JSON_DEPTH
     with (
-        patch("custom_components.blackmagic_camera.api.json.loads", side_effect=RecursionError),
+        patch("custom_components.blackmagic_camera.parsing.json.loads", side_effect=RecursionError),
         pytest.raises(ValueError, match="nested too deeply"),
     ):
         parse_json_text("[]")
@@ -318,6 +323,11 @@ def test_fingerprint_helpers() -> None:
     assert split_host_port("cam.local:8443", 443) == ("cam.local", 8443)
     assert split_host_port("[fe80::1]:444", 443) == ("fe80::1", 444)
     assert split_host_port("[fe80::1]", 443) == ("fe80::1", 443)
+    assert split_host_port("cam:²", 443) == ("cam:²", 443)
+    assert split_host_port("[fe80::1]:²", 443) == ("fe80::1", 443)
+    assert content_length("1024") == 1024
+    assert content_length("²") is None
+    assert content_length("99999999999") is None
 
 
 async def test_fetch_fingerprint() -> None:

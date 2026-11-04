@@ -214,7 +214,9 @@ What the integration does to protect your camera and Home Assistant:
 - **Untrusted answers**: responses are limited to 1 MiB, text to 255
   characters, and names the camera reports are checked before they are used
   in a request. A broken or tampered camera cannot crash or flood
-  Home Assistant.
+  Home Assistant. The parsers are fuzzed: randomly in every test run, and
+  coverage guided with [Atheris](https://github.com/google/atheris)
+  (`tests/fuzz/`).
 - **Gentle on the camera**: at most 4 requests at a time, one command at a
   time, and back-off while the camera is offline.
 - **Nothing to open**: the integration only connects out to the camera; it

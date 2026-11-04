@@ -26,9 +26,7 @@ from .api import (
     HttpsRequired,
     InvalidAuth,
     WebsocketUnsupported,
-    format_fingerprint,
     gather_limited,
-    parse_json_text,
 )
 from .capabilities import CameraCapabilities, async_probe_capabilities
 from .const import (
@@ -47,6 +45,7 @@ from .const import (
     STORAGE_VERSION,
 )
 from .helpers import async_get_fingerprint, pins_certificate
+from .parsing import format_fingerprint, parse_json_text
 
 _LOGGER = logging.getLogger(__name__)
 

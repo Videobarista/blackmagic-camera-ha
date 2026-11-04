@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-import ipaddress
 import logging
-import re
 from typing import Any
 
 import voluptuous as vol
@@ -36,56 +34,9 @@ from .const import (
     MIN_SCAN_INTERVAL,
 )
 from .helpers import async_create_api, async_get_fingerprint, pins_certificate
+from .parsing import normalize_host
 
 _LOGGER = logging.getLogger(__name__)
-
-_HOSTNAME = re.compile(
-    r"(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
-    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\.?"
-)
-
-
-def normalize_host(value: str) -> str | None:
-    """Return "name", "name:port" or "[v6]:port", or None when invalid.
-
-    Only an IP address or host name with an optional port is accepted, so
-    nothing else (credentials, paths, queries) can slip into the URLs.
-    """
-    host = value.strip()
-    for prefix in ("http://", "https://"):
-        if host.lower().startswith(prefix):
-            host = host[len(prefix) :]
-    host = host.split("/", 1)[0]
-    try:
-        address = ipaddress.ip_address(host)
-    except ValueError:
-        pass
-    else:
-        return f"[{address}]" if address.version == 6 else str(address)
-
-    port: str | None = None
-    if host.startswith("["):
-        inner, closed, rest = host[1:].partition("]")
-        try:
-            name = f"[{ipaddress.IPv6Address(inner)}]"
-        except ValueError:
-            return None
-        if not closed or (rest and not rest.startswith(":")):
-            return None
-        port = rest[1:] if rest else None
-    else:
-        name, separator, port_part = host.rpartition(":")
-        if not separator:
-            name = host
-        else:
-            port = port_part
-        if not _HOSTNAME.fullmatch(name):
-            return None
-    if port is None:
-        return name
-    if not port.isdigit() or not 1 <= int(port) <= 65535:
-        return None
-    return f"{name}:{int(port)}"
 
 
 def _connection_schema(defaults: Mapping[str, Any]) -> vol.Schema:
