@@ -6,6 +6,8 @@
 [![HACS](https://github.com/Videobarista/blackmagic-camera-ha/actions/workflows/hacs.yml/badge.svg?branch=main)](https://github.com/Videobarista/blackmagic-camera-ha/actions/workflows/hacs.yml)
 [![Tests](https://github.com/Videobarista/blackmagic-camera-ha/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/Videobarista/blackmagic-camera-ha/actions/workflows/tests.yml)
 [![CodeQL](https://github.com/Videobarista/blackmagic-camera-ha/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/Videobarista/blackmagic-camera-ha/actions/workflows/codeql.yml)
+[![Local only](https://github.com/Videobarista/blackmagic-camera-ha/actions/workflows/local-only.yml/badge.svg?branch=main)](https://github.com/Videobarista/blackmagic-camera-ha/actions/workflows/local-only.yml)
+[![IoT class](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FVideobarista%2Fblackmagic-camera-ha%2Fmain%2Fcustom_components%2Fblackmagic_camera%2Fmanifest.json&query=%24.iot_class&label=IoT%20class&color=41BDF5)](#local-only)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Quality scale: Bronze](https://img.shields.io/badge/quality%20scale-aligned%20with%20Bronze-cd7f32.svg)](#quality-scale)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Videobarista/blackmagic-camera-ha/badge)](https://scorecard.dev/viewer/?uri=github.com/Videobarista/blackmagic-camera-ha)
@@ -222,6 +224,26 @@ What the integration does to protect your camera and Home Assistant:
 - **Nothing to open**: the integration only connects out to the camera; it
   opens no ports, webhooks or listeners and has no dependencies beyond
   Home Assistant itself.
+
+### Local only
+
+The integration only talks to your camera, never to the internet or any
+other service. Two automated checks back the **Local only** badge:
+
+- `scripts/check_local_only.py` (the badge's workflow) reads the manifest and
+  the code: local IoT class, no cloud or webhook, no extra Python packages, no
+  listeners or webhooks, connections only from `api.py`, and no hard-coded
+  internet addresses. Every address comes from your configuration.
+- The tests record every HTTP request, websocket and TLS connection during
+  setup, certificate pinning, polling and commands, and check that all of
+  them go to the configured camera. Real network access is blocked in the
+  tests, so anything else would fail.
+
+The **IoT class** badge shows the class declared in the manifest
+(`local_push`: the camera pushes changes over the local network).
+
+This covers the integration itself; what Home Assistant does (for example its
+optional analytics) is up to your Home Assistant settings.
 
 ### Network advice
 

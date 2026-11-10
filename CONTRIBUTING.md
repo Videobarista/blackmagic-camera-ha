@@ -19,7 +19,8 @@ results and pull requests are all welcome.
 1. Fork the repository and create a branch from `main`.
 2. Make your change, with tests (see the test policy below).
 3. Run the checks locally (see below) and open a pull request against `main`.
-4. All CI checks must pass: Ruff, Hassfest, HACS validation, Tests and CodeQL.
+4. All CI checks must pass: Ruff, Hassfest, HACS validation, Tests, CodeQL and
+   Local only.
 
 The maintainer reviews pull requests and may ask for changes before merging.
 
@@ -33,6 +34,9 @@ The maintainer reviews pull requests and may ask for changes before merging.
 - **Language**: code, comments, documentation and commit messages in English.
 - **No new dependencies** unless there is no reasonable alternative; the
   integration only uses what Home Assistant ships.
+- **Local only**: the integration talks to the configured camera only.
+  Network code stays in `api.py`, there are no hard-coded addresses, and
+  `python3 scripts/check_local_only.py` must pass.
 - **Untrusted input**: treat everything the camera sends as untrusted, never
   log credentials, and keep personal data out of test fixtures. Code that
   parses camera answers or user input belongs in `parsing.py`, which is
@@ -44,6 +48,7 @@ The maintainer reviews pull requests and may ask for changes before merging.
 pip install -r requirements_test.txt -r requirements_lint.txt
 ruff check .
 ruff format --check .
+python3 scripts/check_local_only.py
 pytest
 ```
 
